@@ -1,0 +1,74 @@
+#!/bin/bash
+
+. /etc/ayer/functions.sh
+
+PROG=$(basename "$0")
+
+TEMP=`getopt -n $PROG  -o t:,b:,o:,u: -l topic:,branch:,owner:,user:,os: -- "$@"` || exit 1
+eval set -- "$TEMP"
+
+ayer_os=centos6
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -t|--topic)
+            ayer_topic=$2
+            shift
+            ;;
+        -b|--branch)
+            ayer_branch=$2
+            shift
+            ;;
+        -o|--owner)
+            ayer_owner=$2
+            shift
+            ;;
+        -u|--user)
+            ayer_user=$2
+            shift
+            ;;
+    esac
+    shift
+done
+
+target_path="$dev/$ayer_user/$ayer_branch/$ayer_topic/$ayer_os"
+base_target_dir="$YUM_REPO_DIR/$target_path"
+main_repo_dir="$base_target_dir/main"
+
+git_dir="$BASE_WORKDIR/"
+
+# TODO: make git.list local for each build
+# TODO: do not move HEAD or analyse FETCH_HEAD in ayer-build-git
+# this will allow to run simult builds
+build_dir="$base_target_dir/build"
+rpms_dir="$build_dir/RPMS"
+log_dir="$build_dir/SLOGS"
+srpms_dir="$build_dir/SRPMS"
+
+mkdir -p "$build_dir"
+cd "$build_dir"
+git_list="$build_dir/git.list"
+ayer-gitlist -s "$GERRIT_SSH" -p "$GERRIT_PORT" "status:open owner:$ayer_owner branch:$ayer_branch topic:$ayer_topic" --git-list-file "$git_list"
+
+release_gitline=$(grep ' release' "$git_list" || true)
+if [ -z "$release_gitline" ]; then
+    release_gitline="refs/heads/$ayer_branch"
+fi
+sed -i '/ release/d' "$git_list"
+
+cd "$base_target_dir/build"
+build_srpms "$git_dir" "${ayer_branch%%_*}"
+release_refspec="${release_gitline%% *}"
+build_release_srpm "$release_refspec" --dev-url $YUM_DEV_BASE_URL --trunk-path $ayer_branch --topic-path $target_path --release "${ayer_branch%%_*}"
+build_final_rpms
+
+if [ -n "$release_gitline" ]; then
+    mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
+fi
+
+echo "creating main repo at $main_repo_dir"
+
+createrepo "$rpms_dir" &>/dev/null
+[ -d "$main_repo_dir" ] && mv "$main_repo_dir"{,.old}
+mv "$rpms_dir" "$main_repo_dir"
+rm -rf "${main_repo_dir}.old"

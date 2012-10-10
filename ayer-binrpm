@@ -1,0 +1,34 @@
+#!/bin/bash
+# requires: yum-utils rpm-build
+
+function die() {
+    echo "$@" >&2
+    exit 3
+}
+
+function as_root() {
+    if [ "$(whoami)" != "root" ]; then
+        sudo "$@"
+    else
+        "$@"
+    fi
+}
+
+root_dir=${1:-$PWD}
+src_repo_dir="$root_dir/SRPMS"
+bin_repo_dir="$root_dir/RPMS"
+log_dir="$root_dir/LOGS"
+
+rm -rf "$bin_repo_dir" "$log_dir"
+mkdir -p "$bin_repo_dir" "$log_dir"
+
+cd "$src_repo_dir"
+for src_rpm in *.src.rpm; do
+    echo "building final rpm for $src_rpm"
+    log_filename="$log_dir/$src_rpm.log"
+    as_root yum-builddep -y "$src_rpm" > "$log_filename"
+    rpmbuild --rebuild "$src_rpm" &>> "$log_filename" || die "rpm build error"
+    grep '^Wrote:.*.rpm' "$log_filename" | while read ignored rpm_name; do
+        mv "$rpm_name" "$bin_repo_dir/"
+    done
+done

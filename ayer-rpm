@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# use `ayer_treeish' environment variable to set branch or commit for tarring
+# HEAD is used by default
+
+function get_tag() {
+    rpm -q --specfile "$1" --qf "%{$2}\n"| head -1 | sed 's,/,,g'
+}
+
+function die() {
+    echo "$@" >&2
+    exit 3
+}
+
+
+RPM_BUILD_DIR=$(mktemp -d /tmp/ayer.rpmbuild.XXXXXX)
+RPM_SRC_DIR=${RPM_BUILD_DIR}/SOURCES
+
+mkdir -p "$RPM_SRC_DIR"
+
+rpmbuild_args=""
+
+for arg in "$@"; do
+    if [[ "$arg" == *.spec ]]; then
+        spec_file="$arg"
+    else
+        rpmbuild_args="$rpmbuild_args $arg"
+    fi
+done
+
+if [ -z "$spec_file" ]; then
+    spec_file="$(echo *.spec|head -1)"
+fi
+
+[ -r "$spec_file" ] || die "cannot find spec \`$spec_file'!"
+
+rpm_name=$(get_tag "$spec_file" name)
+rpm_version=$(get_tag "$spec_file" version)
+tar_base="${rpm_name}-${rpm_version}"
+gear_outdir="$tar_base"
+archive_ext=tar.gz
+
+# if [ -r .gear-rules ]; then
+#     for word in $(grep '^tar' .gear-rules | sed "s/@version@/${rpm_version}/g" | sed "s/@name@/${rpm_name}/g"); do
+#         case $word in
+#             zip:|tar*:)
+#                 archive_ext=${word%:}
+#                 ;;
+#             name=*)
+#                 tar_base=${word#name=}
+#                 ;;
+#             base=*)
+#                 gear_outdir=${word#base=}
+#                 ;;
+#         esac
+#     done
+#     to_copy="$(grep '^copy:' .gear-rules | sed 's/copy://')"
+#     [ -n "$to_copy" ] && cp -v $to_copy "${RPM_SRC_DIR}"
+# fi
+
+
+if [[ $archive_ext = tar* ]]; then
+    archive_format=tar
+else
+    archive_format=zip
+fi
+
+case $archive_ext in
+    tar.gz)
+        compress_cmd=gzip
+        ;;
+    tar.bz2)
+        compress_cmd=bzip2
+        ;;
+    tar.xz)
+        compress_cmd=xz
+        ;;
+    *)
+        compress_cmd=""
+esac
+
+gear_outfile="$RPM_SRC_DIR/$tar_base.$archive_format"
+
+rm -f "$gear_outfile".*
+git archive --format="$archive_format" --prefix="$tar_base"/ "${ayer_treeish:-HEAD}" > "$gear_outfile"
+if [ -n "$compress_cmd" ]; then
+    $compress_cmd "$gear_outfile"
+fi
+
+rpmbuild $rpmbuild_args "$spec_file" --define "_sourcedir $RPM_SRC_DIR"
+rm -rf "$RPM_BUILD_DIR"

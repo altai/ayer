@@ -1,0 +1,40 @@
+#!/bin/bash
+
+. /etc/ayer/functions.sh
+
+base_version="${1%_trunk}"
+trunk_name="${2%_trunk}_trunk"
+
+# TODO: check for validity base_version, trunk_name
+
+git_repos_dir="${BASE_WORKDIR}/git"
+
+mkdir -p "$git_repos_dir"
+
+cd "$git_repos_dir"
+origin_path="$(gerrit_repo_ssh manifest)"
+git_fetch_refspec "manifest" "$origin_path" "$base_version"
+cd ./manifest
+git checkout FETCH_HEAD
+# TODO: edit XML appropriately (python/perl)
+sed -r -i 's#revision=("[^"]+"|'"'[^']+')"'#revision="refs/heads/'$trunk_name'"#' "$MANIFEST_FILE"
+git commit "$MANIFEST_FILE" -m "switch to $trunk_name"
+git push origin +HEAD:refs/heads/$trunk_name
+
+ayer-manifest "$MANIFEST_FILE" | while read git_project_dir; do
+    cd "$git_repos_dir"
+    git_project_dir="${git_project_dir%.git}.git"
+    origin_path="$(gerrit_repo_ssh "$git_project_dir")"
+    git_fetch_refspec "${git_project_dir}" "$origin_path" "$base_version"
+    cd "${git_project_dir}"
+    git push origin +FETCH_HEAD:refs/heads/$trunk_name
+done
+
+for ayer_os in $SUPPORTED_OSES; do
+    base_target_dir="$YUM_REPO_DIR/$trunk_name/$ayer_os"
+    for subdir in main deps; do
+        mkdir -p "$base_target_dir/$subdir"
+        createrepo "$base_target_dir/$subdir"
+    done
+done
+# TODO: create release at "$YUM_REPO_DIR/$trunk_name"

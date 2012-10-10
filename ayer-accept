@@ -1,0 +1,88 @@
+#!/bin/bash
+
+. /etc/ayer/functions.sh
+
+
+PROG=$(basename "$0")
+
+TEMP=`getopt -n $PROG  -o t:,b:,o:,u: -l topic:,branch:,owner:,user:,os: -- "$@"` || exit 1
+eval set -- "$TEMP"
+
+ayer_os=centos6
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -t|--topic)
+            ayer_topic=$2
+            shift
+            ;;
+        -b|--branch)
+            ayer_branch=$2
+            shift
+            ;;
+        -o|--owner)
+            ayer_owner=$2
+            shift
+            ;;
+        -u|--user)
+            ayer_user=$2
+            shift
+            ;;
+        --os)
+            ayer_os=$2
+            shift
+            ;;
+    esac
+    shift
+done
+
+base_target_dir="$YUM_REPO_DIR/dev/$ayer_user/$ayer_branch/$ayer_topic/$ayer_os"
+target_yum_repo_dir="$base_target_dir/main"
+
+git_dir="$BASE_WORKDIR/"
+mkdir -p "$git_dir"
+cd "$git_dir"
+
+ayer-gitlist -s "$GERRIT_SSH" -p "$GERRIT_PORT" "status:open owner:$ayer_owner branch:$ayer_branch topic:$ayer_topic $GERRIT_SUBMITTABLE"
+mkdir -p accept
+sort -u git.list > accept/submittable
+ayer-gitlist -s "$GERRIT_SSH" -p "$GERRIT_PORT" "status:open owner:$ayer_owner branch:$ayer_branch topic:$ayer_topic"
+sort -u git.list > accept/all
+diff accept/all accept/submittable > accept/diff
+
+if [ -s accept/diff ]; then
+    grep '^<' accept/diff | sed 's/^< /    /' > accept/unsubmittable
+    grep '^>' accept/diff | sed 's/^> /    /' > accept/extras
+    echo "cannot accept branch:$ayer_branch topic:$ayer_topic owner:$ayer_owner"
+    if [ -s accept/unsubmittable ]; then
+        echo "these changes cannot be submitted (low Code Review or Verify)"
+        cat accept/unsubmittable
+    fi
+    if [ -s accept/extras ]; then
+        echo "these changes can be submitted and override the latest changes"
+        cat accept/extras
+    fi
+    exit 2
+fi
+
+ayer-build-git "$git_dir" "$base_target_dir/build" "${ayer_branch%%_*}"
+
+git_repos_list="${git_dir}/git.list"
+git_repos_dir="${git_dir}/git"
+
+cd "$git_repos_dir"
+while read treeish repo_name; do
+    repo_name="${repo_name%.git}"
+    cd "$git_repos_dir/${repo_name}.git"
+    git fetch -p origin
+    ssh -p "$GERRIT_PORT" "$GERRIT_SSH" gerrit review --project "$repo_name" --message "'Accepted to trunk'" --submit $(git rev-list origin/$ayer_branch..HEAD)
+done < "$git_repos_list"
+
+ready_rpm_dir="$base_target_dir/build/RPMS/"
+base_target_dir="$YUM_REPO_DIR/$ayer_branch/$ayer_os"
+target_yum_repo_dir="$base_target_dir/main"
+mkdir -p "$target_yum_repo_dir"
+mv "$ready_rpm_dir/"*.rpm "$target_yum_repo_dir"
+ayer-cleanrepo "$target_yum_repo_dir"
+createrepo "$target_yum_repo_dir"
+

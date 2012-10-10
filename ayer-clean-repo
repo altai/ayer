@@ -1,0 +1,42 @@
+#!/usr/bin/python2
+
+import os
+import sys
+import rpm
+import glob
+
+
+def remove(filename):
+    os.remove(filename)
+    print "removed `%s'" % filename
+
+
+def main():
+    repo_dir = sys.argv[1] if len(sys.argv) > 1 else "."
+
+    ts = rpm.TransactionSet()
+    latest_rpms = {}
+
+    for rpm_file in glob.glob("%s/*.rpm" % repo_dir):
+        fdno = os.open(rpm_file, os.O_RDONLY)
+        hdr = ts.hdrFromFdno(fdno)
+        os.close(fdno)
+        rpm_name = hdr[rpm.RPMTAG_NAME]
+        rpm_evr = (
+            str(hdr[rpm.RPMTAG_EPOCH]),
+            str(hdr[rpm.RPMTAG_VERSION]),
+            str(hdr[rpm.RPMTAG_RELEASE]))
+        try:
+            (prev_file, prev_evr) = latest_rpms[rpm_name]
+        except:
+            latest_rpms[rpm_name] = (rpm_file, rpm_evr)
+            continue
+        if rpm.labelCompare(prev_evr, rpm_evr) <= 0:
+            remove(prev_file)            
+            latest_rpms[rpm_name] = (rpm_file, rpm_evr)
+        else:
+            remove(rpm_file)
+
+    
+if __name__ == "__main__":
+    main()

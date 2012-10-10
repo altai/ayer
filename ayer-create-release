@@ -1,0 +1,86 @@
+#!/bin/bash
+
+function die() {
+    echo "$@" >&2
+    exit 3
+}
+
+dev_url=
+trunk_path=
+topic_path=
+release=v1.0.0
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --dev-url)
+            dev_url=$2
+            shift
+            ;;
+        --trunk-path)
+            trunk_path=$2
+            shift
+            ;;
+        --topic-path)
+            topic_path=$2
+            shift
+            ;;
+        --release)
+            release=$2
+            shift
+            ;;
+    esac
+    shift
+done
+
+#dev_url=http://osc-build.vm.griddynamics.net/altai
+#trunk_path=v1.0.1_trunk
+#topic_path=dev/jenkins/v1.0.1_trunk/feat_1
+#release=v1.0.1_my_feature
+
+
+versions_file=versions.list
+project_release_dir=project-release
+rpm_src_dir=$(mktemp -d /tmp/ayer.release.XXXXXX)
+
+
+spec_file=$(ls -d "$project_release_dir"/*.spec | head -1)
+[ -f "$spec_file" ] || die "cannot find spec file at $project_release_dir"
+
+cp "$project_release_dir"/* "$rpm_src_dir"
+spec_file="$rpm_src_dir/$(basename "$spec_file")"
+
+sed -i 's/^ *Release *:.*$/Release:     '"$release"/ "$spec_file"
+if [ -n "$dev_url" ]; then
+    sed -i 's#^.*define.*project_devurl.*$#%define project_devurl '"'$dev_url'#" "$spec_file"
+fi
+
+function substitute_template() {
+    local version="$1"
+    local urlkind="$2"
+    local path="$3"
+    sed "s#@version@#$version#g" | sed "s#@urlkind@#$urlkind#g" |
+        sed "s#@path@#$path#g"
+}
+
+
+for template_file in "$project_release_dir"/*.repo.template; do
+    [ -f "$template_file" ] || continue
+    target_file="$rpm_src_dir/$(basename "${template_file%.template}")"
+    touch "$target_file"
+    for version in $(< "$versions_file"); do
+        substitute_template "$version" baseurl "v$version" < "$template_file" >> "$target_file"
+    done
+    if [ -n "$dev_url" ]; then
+        if [ -n "$trunk_path" ]; then
+            substitute_template "trunk" devurl "$trunk_path" < "$template_file" |
+                sed 's/^.*gpgcheck.*$/gpgcheck=0/' >> "$target_file"
+        fi
+        if [ -n "$topic_path" ]; then
+            substitute_template "topic" devurl "$topic_path" < "$template_file" |
+                sed 's/^.*gpgcheck.*$/gpgcheck=0/' >> "$target_file"
+        fi
+    fi
+done
+
+rpmbuild -bs "$spec_file" --define "_sourcedir $rpm_src_dir"
+rm -rf "$rpm_src_dir"

@@ -1,0 +1,79 @@
+#!/usr/bin/python2
+
+import argparse
+import subprocess
+import re
+import sys
+import json
+
+def main():
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument(
+        "--ssh-host", "-s", required=True)
+    arg_parser.add_argument(
+        "--ssh-port", "-p", default=29418)
+
+    arg_parser.add_argument(
+        "--git-list-file", "-g",
+        default="git.list")
+
+    arg_parser.add_argument(
+        "query", nargs="+")
+
+    arg_parser.add_argument(
+        "--full-path", "-f",
+        default=False, action="store_true")
+
+    args = arg_parser.parse_args()
+
+    ssh_cmd = [
+            "ssh",
+            "-p", str(args.ssh_port),
+            args.ssh_host,
+            "gerrit",
+            "query",
+            "--format=JSON",
+            "--current-patch-set",
+            "--"
+    ] + args.query
+    ssh_process = subprocess.Popen(
+        ssh_cmd,
+        stdout=subprocess.PIPE)
+    (ssh_out, ssh_err) = ssh_process.communicate()
+    if ssh_process.returncode != 0:
+        print >> sys.stderr, (
+            "command %s\n failed with code %s.\nStdout:\n%s\nStderr:\n%s\n" %
+            ssh_cmd.join(" "), ssh_process.returncode,
+            ssh_out, ssh_err)
+        sys.exit(2)
+    all_sets = {}
+    # TODO: just complain and die if several patch-sets are available for the same project
+    for line in ssh_out.split("\n"):
+        try:
+            patch_set = json.loads(line)
+            project = patch_set["project"]
+        except:
+            continue
+        try:
+            prev = all_sets[project]
+            if prev["createdOn"] > patch_set["currentPatchSet"]["createdOn"]:
+                continue
+        except:
+            pass
+        all_sets[project] = patch_set["currentPatchSet"]
+
+    if args.git_list_file != "-":
+        git_list_file = open(args.git_list_file, "wt")
+    else:
+        git_list_file = sys.stdout
+    ssh_prefix = (("ssh://%s:%s/" % (args.ssh_host, args.ssh_port))
+                  if args.full_path
+                  else "")
+    for project, patch_set in all_sets.iteritems():
+        print >>git_list_file, "%s %s%s" % (
+            patch_set["ref"], ssh_prefix, project)
+    git_list_file.close()
+
+
+if __name__ == "__main__":
+    main()
