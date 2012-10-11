@@ -1,39 +1,52 @@
 #!/bin/bash
 
-. /etc/ayer/functions.sh
+. /usr/lib/ayer/functions.sh
 
+# arguments: version_name
+
+function create_and_publish_tag() {
+    local git_project_dir="$1"
+    git_fetch_refspec "${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")" "$trunk_name:refs/heads/$trunk_name"
+    cd "${git_project_dir}"
+    git tag --force "$version_name" "$trunk_name"
+    git push --tags origin
+}    
 
 version_name="${1%_trunk}"
-trunk_name="${1}_trunk"
+trunk_name="${version_name}_trunk"
 
 # TODO: check for validity trunk_name
 # TODO: manipulate version tree data
+
+[ -d "$YUM_REPO_DIR/$trunk_name" ] || die "trunk directory $YUM_REPO_DIR/$trunk_name does not exist"
+[ ! -d "$YUM_REPO_DIR/$version_name" ] || die "release directory $YUM_REPO_DIR/$version_name already exists"
 
 git_repos_dir="${BASE_WORKDIR}/git"
 
 mkdir -p "$git_repos_dir"
 
 cd "$git_repos_dir"
-origin_path=$(gerrit_repo_ssh manifest)
-git_fetch_refspec "manifest" "$origin_path" "$trunk_name" || die "cannot checkout to $trunk_name of manifest"
-cd ./manifest
-git checkout FETCH_HEAD
+create_and_publish_tag release.git
 
-{ echo manifest; ayer-manifest "$MANIFEST_FILE"; } | while read git_project_dir; do
-    cd "$git_repos_dir"
-    git_project_dir="${git_project_dir%.git}.git"
-    origin_path="$(gerrit_repo_ssh "$git_project_dir")"
-    if ! git_fetch_refspec "${git_project_dir}" "$origin_path" "$trunk_name"; then
-        echo "cannot checkout to ${trunk_name} of ${git_project_dir}"
-        continue
+git ls-tree -r "$trunk_name" | while read mode type hash path; do
+    if [ "$mode" == 160000 ]; then
+        cd "$git_repos_dir"
+        create_and_publish_tag "$(basename "$path").git"
     fi
-    cd "${git_project_dir}"
-    git tag --force -a -m "release $version_name" "$version_name" FETCH_HEAD
-    git push --tags origin
 done
 
+base_target_dir="$YUM_REPO_DIR/$trunk_name/$build_os"
+build_dir="$base_target_dir/build"
+mkdir -p "$build_dir"
+cd "$build_dir"
+rm -rf *RPMS *LOGS
+
+build_release_srpm "$trunk_name" --release "$version_name"
+cd "$build_dir"
+build_final_rpms
+
+rpms_dir="$build_dir/RPMS"
+mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
+rm -rf "$build_dir"
+
 mv "$YUM_REPO_DIR/"{$trunk_name,$version_name}
-
-# TODO: create release
-
-

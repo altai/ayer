@@ -1,0 +1,45 @@
+#!/bin/bash
+
+. /usr/lib/ayer/functions.sh
+
+cd "$build_dir"
+git_list="$build_dir/git.list"
+
+echo 'refs/tags/v1.0.1 altai-installer.git
+refs/tags/v1.0.1 altai-installer-test.git
+refs/tags/v1.0.1 bunch.git
+refs/tags/v1.0.1 focus.git
+refs/tags/v1.0.1 focus-selenium-test.git
+refs/tags/v1.0.1 glance.git
+refs/tags/v1.0.1 instance-notifier.git
+refs/tags/v1.0.1 keystone.git
+refs/tags/v1.0.1 nova2ools.git
+refs/tags/v1.0.1 nova-billing.git
+refs/tags/v1.0.1 nova-dns.git
+refs/tags/v1.0.1 nova-fping-ext.git
+refs/tags/v1.0.1 nova.git
+refs/tags/v1.0.1 nova-networks-ext.git
+refs/tags/v1.0.1 noVNC.git
+refs/tags/v1.0.1 odb.git
+refs/tags/v1.0.1 python-glanceclient.git
+refs/tags/v1.0.1 python-keystoneclient.git
+refs/tags/v1.0.1 python-novaclient.git
+refs/tags/v1.0.1 python-openstackclient-base.git
+refs/tags/v1.0.1 python-zabbix-api.git
+refs/tags/v1.0.1 zabbix-notifier.git
+' > "$git_list"
+
+build_srpms "$git_dir" "${build_branch%%_*}"
+
+cd "$build_dir"
+build_final_rpms
+
+rpms_dir="$build_dir/RPMS"
+mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
+
+echo "creating main repo at $main_repo_dir"
+
+createrepo "$rpms_dir" &>/dev/null
+[ -d "$main_repo_dir" ] && mv "$main_repo_dir"{,.old}
+mv "$rpms_dir" "$main_repo_dir"
+rm -rf "${main_repo_dir}.old"

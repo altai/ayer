@@ -13,7 +13,7 @@ function die() {
 }
 
 
-RPM_BUILD_DIR=$(mktemp -d /tmp/ayer.rpmbuild.XXXXXX)
+#RPM_BUILD_DIR$(mktemp -d /tmp/ayer.rpmbuild.XXXXXX)
 RPM_SRC_DIR=${RPM_BUILD_DIR}/SOURCES
 
 mkdir -p "$RPM_SRC_DIR"
@@ -88,4 +88,4 @@ if [ -n "$compress_cmd" ]; then
 fi
 
 rpmbuild $rpmbuild_args "$spec_file" --define "_sourcedir $RPM_SRC_DIR"
-rm -rf "$RPM_BUILD_DIR"
+

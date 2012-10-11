@@ -1,70 +1,95 @@
 #!/bin/bash
 
-. /etc/ayer/functions.sh
+. /usr/lib/ayer/functions.sh
 
 PROG=$(basename "$0")
 
-TEMP=`getopt -n $PROG  -o t:,b:,o:,u: -l topic:,branch:,owner:,user:,os: -- "$@"` || exit 1
+TEMP=`getopt -n $PROG  -o c:,u: -l commit:,user: -- "$@"` || exit 1
 eval set -- "$TEMP"
-
-ayer_os=centos6
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        -t|--topic)
-            ayer_topic=$2
-            shift
-            ;;
-        -b|--branch)
-            ayer_branch=$2
-            shift
-            ;;
-        -o|--owner)
-            ayer_owner=$2
+        -c|--commit)
+            build_commit=$2
             shift
             ;;
         -u|--user)
-            ayer_user=$2
+            build_user=$2
             shift
             ;;
     esac
     shift
 done
+[ -n "$build_commit" ] || die "build commit is unknown"
+[ -n "$build_user" ] || die "build user is unknown"
 
-target_path="$dev/$ayer_user/$ayer_branch/$ayer_topic/$ayer_os"
+
+commit_info_file=$(mktemp /tmp/ayer.build.XXXXXX)
+gerrit_command query "project:release commit:$build_commit" --current-patch-set > $commit_info_file
+while read key value; do
+    case "$key" in
+        branch:)
+            build_branch=$value
+            ;;
+        topic:)
+            build_topic=$value
+            ;;
+        ref:)
+            release_refspec=$value
+    esac
+done < "$commit_info_file"
+rm "$commit_info_file"
+[ -n "$build_branch" ] || die "build branch is unknown"
+[ -n "$build_topic" ] || die "build topic is unknown"
+
+git_dir="$BASE_WORKDIR/git"
+
+target_path="dev/$build_user/$build_branch/$build_topic/$build_os"
 base_target_dir="$YUM_REPO_DIR/$target_path"
 main_repo_dir="$base_target_dir/main"
 
-git_dir="$BASE_WORKDIR/"
-
-# TODO: make git.list local for each build
-# TODO: do not move HEAD or analyse FETCH_HEAD in ayer-build-git
-# this will allow to run simult builds
 build_dir="$base_target_dir/build"
-rpms_dir="$build_dir/RPMS"
-log_dir="$build_dir/SLOGS"
-srpms_dir="$build_dir/SRPMS"
 
 mkdir -p "$build_dir"
+
+cd "$build_dir"
+rm -rf *RPMS *LOGS
+build_release_srpm "$release_refspec" --dev-url $YUM_DEV_BASE_URL --trunk-path $build_branch --topic-path $target_path --release "${build_branch%%_*}"
+
+cd "$build_dir/release"
+git fetch origin "$build_branch:$build_branch" &>/dev/null
+query_list=$(git diff-tree -r $build_branch..$build_commit |
+    while read mode1 mode2 hash1 hash2 ignored; do
+        if [ "$mode2" == 160000 ]; then
+            echo "commit:$hash2 OR"
+        fi
+    done
+)
+query_list=${query_list% OR}
+
+
 cd "$build_dir"
 git_list="$build_dir/git.list"
-ayer-gitlist -s "$GERRIT_SSH" -p "$GERRIT_PORT" "status:open owner:$ayer_owner branch:$ayer_branch topic:$ayer_topic" --git-list-file "$git_list"
 
-release_gitline=$(grep ' release' "$git_list" || true)
-if [ -z "$release_gitline" ]; then
-    release_gitline="refs/heads/$ayer_branch"
-fi
-sed -i '/ release/d' "$git_list"
+rm -f "$git_list"
+gerrit_command query "$query_list" --current-patch-set | while read key value; do
+    case "$key" in
+        project:)
+            project=$value
+            ;;
+        ref:)
+            echo "$value $project" >> $git_list
+            ;;
+    esac
+done
 
-cd "$base_target_dir/build"
-build_srpms "$git_dir" "${ayer_branch%%_*}"
-release_refspec="${release_gitline%% *}"
-build_release_srpm "$release_refspec" --dev-url $YUM_DEV_BASE_URL --trunk-path $ayer_branch --topic-path $target_path --release "${ayer_branch%%_*}"
+build_srpms "$git_dir" "${build_branch%%_*}"
+
+cd "$build_dir"
 build_final_rpms
 
-if [ -n "$release_gitline" ]; then
-    mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
-fi
+rpms_dir="$build_dir/RPMS"
+mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
 
 echo "creating main repo at $main_repo_dir"
 

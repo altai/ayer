@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. /etc/ayer/functions.sh
+. /usr/lib/ayer/functions.sh
 
 base_version="${1%_trunk}"
 trunk_name="${2%_trunk}_trunk"
@@ -12,29 +12,39 @@ git_repos_dir="${BASE_WORKDIR}/git"
 mkdir -p "$git_repos_dir"
 
 cd "$git_repos_dir"
-origin_path="$(gerrit_repo_ssh manifest)"
-git_fetch_refspec "manifest" "$origin_path" "$base_version"
-cd ./manifest
-git checkout FETCH_HEAD
-# TODO: edit XML appropriately (python/perl)
-sed -r -i 's#revision=("[^"]+"|'"'[^']+')"'#revision="refs/heads/'$trunk_name'"#' "$MANIFEST_FILE"
-git commit "$MANIFEST_FILE" -m "switch to $trunk_name"
-git push origin +HEAD:refs/heads/$trunk_name
+git_fetch_refspec "release.git" "$(gerrit_repo_ssh release)" "refs/tags/$base_version:$trunk_name"
+cd ./release.git
+git push origin +$trunk_name:refs/heads/$trunk_name
 
-ayer-manifest "$MANIFEST_FILE" | while read git_project_dir; do
-    cd "$git_repos_dir"
-    git_project_dir="${git_project_dir%.git}.git"
-    origin_path="$(gerrit_repo_ssh "$git_project_dir")"
-    git_fetch_refspec "${git_project_dir}" "$origin_path" "$base_version"
-    cd "${git_project_dir}"
-    git push origin +FETCH_HEAD:refs/heads/$trunk_name
+git ls-tree -r $base_version | while read mode type hash path; do
+    if [ "$mode" == 160000 ]; then
+        cd "$git_repos_dir"
+        git_project_dir="$(basename "$path").git"
+        origin_path="$(gerrit_repo_ssh "$git_project_dir")"
+        git_fetch_refspec "${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")" "refs/tags/$base_version:$trunk_name"
+        cd "${git_project_dir}"
+        git push origin +$trunk_name:refs/heads/$trunk_name
+    fi
 done
 
-for ayer_os in $SUPPORTED_OSES; do
-    base_target_dir="$YUM_REPO_DIR/$trunk_name/$ayer_os"
-    for subdir in main deps; do
-        mkdir -p "$base_target_dir/$subdir"
-        createrepo "$base_target_dir/$subdir"
-    done
+target_path="$trunk_name/$build_os"
+base_target_dir="$YUM_REPO_DIR/$target_path"
+main_repo_dir="$base_target_dir/main"
+
+build_dir="$base_target_dir/build"
+
+mkdir -p "$build_dir"
+
+cd "$build_dir"
+rm -rf *RPMS *LOGS
+build_release_srpm "$release_refspec" --dev-url $YUM_DEV_BASE_URL --trunk-path $target_path  --release "${build_branch%%_*}"
+cd "$build_dir"
+build_final_rpms
+
+rpms_dir="$build_dir/RPMS"
+mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
+
+for subdir in main deps; do
+    mkdir -p "$base_target_dir/$subdir"
+    createrepo "$base_target_dir/$subdir"
 done
-# TODO: create release at "$YUM_REPO_DIR/$trunk_name"

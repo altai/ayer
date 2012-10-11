@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -e 
+. /usr/lib/ayer/functions.sh
+
+target_branch=${1%_trunk}_trunk
+target_feature=$2
+
+[ -n "$target_feature" -a -n "$target_branch" ] || die "usage: hoy-feature branch feature"
+
+cd_to_hoy_top
+
+git fetch origin
+git checkout -t -B "$target_feature" "origin/$target_branch"
+git submodule update
+git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
+
+sed -i '/^branch=/d' .ayer
+echo "branch=$target_branch" >> .ayer

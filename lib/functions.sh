@@ -2,11 +2,26 @@ AYER_CONFIG=${AYER_CONFIG:-~/.config/ayer}
 GERRIT_PORT=29418
 BASE_WORKDIR=~/.ayer
 GERRIT_SUBMITTABLE="CodeReview+2 Verified+1 -Verified-1 -CodeReview-2"
+build_os=centos6
 
 set -E
 
 source "$AYER_CONFIG"
 # TODO: show errors if some variables are not set
+
+function cd_to_hoy_top() {
+    while true; do
+        if [ "$PWD" == "/" ]; then
+            die "not an ayer repository"
+        fi
+        if [ -f .ayer ]; then
+            source .ayer
+            hoy_top=$PWD
+            return
+        fi
+        cd ..
+    done
+}
 
 # surprise: this command finishes the current shell
 function die() {
@@ -50,6 +65,9 @@ function gerrit_repo_ssh()
     fi
 }
 
+function gerrit_command() {
+    ssh "$GERRIT_SSH" -p "$GERRIT_PORT" gerrit "$@"
+}
 
 # arguments: repo_dir remote_repo_name remote_repo_full_path
 function git_update_remote() {
@@ -105,20 +123,24 @@ function update_spec() {
 $changelog_commit_msg/" "$spec_file"
 }
 
-# arguments: git_dir build_version
+# uses PWD as working dir
+function clean_srpms() {
+    local build_dir=$PWD 
+    rm -rf "$build_dir"/{SRPMS,RPMS,LOGS,SLOGS}
+}
+
+# arguments: git_repos_dir build_version
 # uses PWD as working dir
 # waits for git.list in PWD
 function build_srpms() {
-    local git_dir=$1
+    local git_repos_dir=$1
     local build_version=$2
 
     local build_dir=$PWD 
     local git_repos_list="${build_dir}/git.list"
-    local git_repos_dir="${git_dir}/git"
     local srpms_dir="$build_dir/SRPMS"
     local logs_dir="$build_dir/SLOGS"
     local spec_dir="$build_dir/SPECS"
-    rm -rf "$logs_dir" "$spec_dir" "$srpms_dir"
     mkdir -p "$logs_dir" "$spec_dir" "$srpms_dir"
     mkdir -p "$git_repos_dir"
 
@@ -174,6 +196,7 @@ function build_release_srpm() {
     local logs_dir="$build_dir/SLOGS"
     local log_filename="$logs_dir/release.log"
     local release_git_dir="$build_dir/release"
+    mkdir -p "$logs_dir" "$srpms_dir"
     git_fetch_refspec "$release_git_dir" "$(gerrit_repo_ssh release)" "$release_refspec" &>/dev/null
     cd "$release_git_dir"
     git checkout FETCH_HEAD &>/dev/null

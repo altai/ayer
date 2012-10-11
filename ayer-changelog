@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. /etc/ayer/functions.sh
+. /usr/lib/ayer/functions.sh
 
 treeish_start="$1"
 treeish_finish="$2"

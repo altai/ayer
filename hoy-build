@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e 
+. /usr/lib/ayer/functions.sh
+
+target_feature=$(git rev-parse --abbrev-ref HEAD)
+
+cd_to_hoy_top
+
+[ -n "$branch" ] || die "\`branch' must be set in .ayer"
+
+upload_type=drafts
+
+{ git submodule -q foreach 'echo $name'; echo .; } | while read repo_path; do
+    cd $hoy_top/$repo_path
+    # TODO: never. Never fetch it: it takes too long. Save refs/published/<feature-name> instead
+    git fetch origin &>/dev/null
+    difference=$(git rev-list origin/$branch..HEAD)
+    if [ -n "$difference" ]; then
+        if ! git ls-remote origin | grep "$(git rev-parse HEAD)" | grep refs/changes; then
+            git push origin HEAD:refs/$upload_type/$branch/$target_feature
+        fi
+    fi
+done
+
