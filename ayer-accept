@@ -1,13 +1,13 @@
 #!/bin/bash
 
-. /usr/lib/ayer/functions.sh
-git_repos_dir="${BASE_WORKDIR}/git"
+source /usr/lib/ayer/functions.sh
+
+load_config
 
 PROG=$(basename "$0")
 
 TEMP=`getopt -n $PROG  -o c: -l commit: -- "$@"` || exit 1
 eval set -- "$TEMP"
-
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -46,42 +46,11 @@ main_repo_dir="$base_target_dir/main"
 
 [ -d "$main_repo_dir" ] || die "looks like there is no trunk: $main_repo_dir directory is missing"
 
-release_git_dir="$git_dir/release.git"
-git_fetch_refspec "$release_git_dir" "$(gerrit_repo_ssh release)" "$release_refspec" &>/dev/null
-cd "$release_git_dir"
+target_path="$build_branch"
+previous_ref="$build_branch"
 
-git fetch origin "$build_branch:refs/heads/$build_branch" &>/dev/null
-query_list=$(git diff-tree -r $build_branch..$build_commit |
-    while read mode1 mode2 hash1 hash2 ignored; do
-        if [ "$mode2" == 160000 ]; then
-            echo "commit:$hash2 OR"
-        fi
-    done
-)
-query_list=${query_list% OR}
+ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_branch"
 
-build_dir="$base_target_dir/build"
-mkdir -p "$build_dir"
-cd "$build_dir"
-rm -rf *RPMS *LOGS
-git_list="$build_dir/git.list"
-
-rm -f "$git_list"
-gerrit_command query "$query_list" --current-patch-set | while read key value; do
-    case "$key" in
-        project:)
-            project=$value
-            ;;
-        ref:)
-            echo "$value $project" >> $git_list
-            ;;
-    esac
-done
-
-build_srpms "$git_dir" "${build_branch%%_*}"
-
-cd "$build_dir"
-build_final_rpms
 
 cd "$git_repos_dir"
 

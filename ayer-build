@@ -1,6 +1,8 @@
 #!/bin/bash
 
-. /usr/lib/ayer/functions.sh
+source /usr/lib/ayer/functions.sh
+
+load_config
 
 PROG=$(basename "$0")
 
@@ -25,7 +27,7 @@ done
 
 
 commit_info_file=$(mktemp /tmp/ayer.build.XXXXXX)
-gerrit_command query "project:release commit:$build_commit" --current-patch-set > $commit_info_file
+gerrit_command query "project:$BASE_PROJECT commit:$build_commit" --current-patch-set > $commit_info_file
 while read key value; do
     case "$key" in
         branch:)
@@ -42,58 +44,7 @@ rm "$commit_info_file"
 [ -n "$build_branch" ] || die "build branch is unknown"
 [ -n "$build_topic" ] || die "build topic is unknown"
 
-git_dir="$BASE_WORKDIR/git"
+target_path="dev/$build_user/$build_branch/$build_topic"
+previous_ref="$build_branch"
 
-target_path="dev/$build_user/$build_branch/$build_topic/$build_os"
-base_target_dir="$YUM_REPO_DIR/$target_path"
-main_repo_dir="$base_target_dir/main"
-
-build_dir="$base_target_dir/build"
-
-mkdir -p "$build_dir"
-
-cd "$build_dir"
-rm -rf *RPMS *LOGS
-build_release_srpm "$release_refspec" --dev-url $YUM_DEV_BASE_URL --trunk-path $build_branch --topic-path $target_path --release "${build_branch%%_*}"
-
-cd "$build_dir/release"
-git fetch origin "$build_branch:$build_branch" &>/dev/null
-query_list=$(git diff-tree -r $build_branch..$build_commit |
-    while read mode1 mode2 hash1 hash2 ignored; do
-        if [ "$mode2" == 160000 ]; then
-            echo "commit:$hash2 OR"
-        fi
-    done
-)
-query_list=${query_list% OR}
-
-
-cd "$build_dir"
-git_list="$build_dir/git.list"
-
-rm -f "$git_list"
-gerrit_command query "$query_list" --current-patch-set | while read key value; do
-    case "$key" in
-        project:)
-            project=$value
-            ;;
-        ref:)
-            echo "$value $project" >> $git_list
-            ;;
-    esac
-done
-
-build_srpms "$git_dir" "${build_branch%%_*}"
-
-cd "$build_dir"
-build_final_rpms
-
-rpms_dir="$build_dir/RPMS"
-mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
-
-echo "creating main repo at $main_repo_dir"
-
-createrepo "$rpms_dir" &>/dev/null
-[ -d "$main_repo_dir" ] && mv "$main_repo_dir"{,.old}
-mv "$rpms_dir" "$main_repo_dir"
-rm -rf "${main_repo_dir}.old"
+ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_branch"

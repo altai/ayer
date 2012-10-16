@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -e 
-. /usr/lib/ayer/functions.sh
+source /usr/lib/ayer/functions.sh
 
 target_feature=$(git rev-parse --abbrev-ref HEAD)
 
@@ -13,13 +12,18 @@ upload_type=drafts
 
 { git submodule -q foreach 'echo $name'; echo .; } | while read repo_path; do
     cd $hoy_top/$repo_path
-    # TODO: never. Never fetch it: it takes too long. Save refs/published/<feature-name> instead
-    git fetch origin &>/dev/null
-    difference=$(git rev-list origin/$branch..HEAD)
-    if [ -n "$difference" ]; then
-        if ! git ls-remote origin | grep "$(git rev-parse HEAD)" | grep refs/changes; then
-            git push origin HEAD:refs/$upload_type/$branch/$target_feature
+    local_commit=$(git rev-parse HEAD)
+    remote_commit=$(git rev-parse remotes/origin/$branch || true)
+    if [ "$local_commit" == "$remote_commit" ]; then
+        continue
+    fi
+    published_ref=refs/published/$target_feature
+    if git rev-parse $published_ref &>/dev/null; then
+        difference=$(git rev-list $published_ref..HEAD)
+        if [ -z "$difference" ]; then
+            continue
         fi
     fi
+    git push origin HEAD:refs/$upload_type/$branch/$target_feature
+    git update-ref $published_ref HEAD
 done
-

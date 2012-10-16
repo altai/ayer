@@ -1,0 +1,146 @@
+#!/bin/bash -x
+
+source /usr/lib/ayer/functions.sh
+
+if [ "$#" -lt 4 ]; then
+    die "usage: $(basename $0) build_commit previous_ref target_path build_release"
+fi
+
+load_config
+
+build_commit=$1
+previous_ref=$2
+target_path=$3
+build_release=${4%_trunk}
+
+# globals: git_dir build_dir
+
+function create_build_plan() {
+    local git_list=$1
+    local previous_ref=$2
+
+    git_fetch_std "$git_dir/${BASE_PROJECT}.git" "$(gerrit_repo_ssh $BASE_PROJECT)" &>/dev/null
+    cd "$git_dir/${BASE_PROJECT}.git"
+
+    echo "$build_commit $BASE_PROJECT" > $git_list
+    if [ -n "$previous_ref" ]; then
+        git diff-tree -r origin/$previous_ref..$build_commit |
+        while read mode1 mode2 hash1 hash2 ignored path; do
+            if [ "$mode2" == 160000 ]; then
+                echo "$hash2 $(basename $path)" >> $git_list
+            fi
+        done
+    else
+        git ls-tree -r "$build_commit" | while read mode type hash path; do
+            if [ "$mode" == 160000 ]; then
+                echo "$hash $(basename $path)" >> $git_list
+            fi
+        done
+    fi
+}
+
+function execute_build_plan() {
+    local build_release=$1
+    local git_list=$2
+
+    local logs_dir="$build_dir/SLOGS"
+    local srpms_dir="$build_dir/SRPMS"
+    cd "$build_dir"
+    mkdir -p "$logs_dir" "$srpms_dir"
+
+    while read refspec repo_name; do
+        repo_name="${repo_name%.git}"
+        echo "processing repository $repo_name"
+        git_fetch_std "$git_dir/${repo_name}.git" "$(gerrit_repo_ssh $repo_name)" &>/dev/null
+        cd "$git_dir/${repo_name}.git"
+        if [ "$repo_name" == deps ]; then
+            rm -rf "$build_dir/deps"
+            git archive --format=tar --prefix=deps/ $refspec | tar -x -C "$build_dir"
+            rm -rf "$build_dir/deps/".git*
+            find "$build_dir/deps/" -type f -name '*rpm' | while read f; do
+                repo_dir=$(dirname $f)
+                if [ ! -d "$repo_dir/repodata" ]; then
+                    createrepo "$repo_dir" &>/dev/null
+                fi
+            done
+        else
+            log_filename="$logs_dir/$repo_name.log"
+            ayer-rpm -bs --builddir $build_dir --release "$build_release" --treeish $refspec &> "$log_filename"
+            grep '^Wrote:.*.rpm' "$log_filename" | while read ignored rpm_name; do
+                mv "$rpm_name" "$srpms_dir/"
+            done
+        fi
+    done < "$git_list"
+}
+
+function build_bin_rpms() {
+    local srpms_dir="$build_dir/SRPMS"
+
+    cd "$build_dir"
+    if [ -n "$BUILD_SERVER_SSH" ]; then
+        log -n "building binary rpms at $BUILD_SERVER_SSH"
+        local remote_dir=$(ssh "$BUILD_SERVER_SSH" "mktemp -d /tmp/ayer.XXXXXX")
+        log ":$remote_dir"
+        scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/" &>/dev/null
+        scp "$(which ayer-binrpm)" "$BUILD_SERVER_SSH:$remote_dir/" &>/dev/null
+        ssh "$BUILD_SERVER_SSH" "cd $remote_dir && ./ayer-binrpm" && binrpm_exitcode=0 || binrpm_exitcode=$?
+        rm -rf "$build_dir/"{RPMS,LOGS}
+        scp -r "$BUILD_SERVER_SSH:$remote_dir/{RPMS,LOGS}" "$build_dir" &>/dev/null
+        ssh "$BUILD_SERVER_SSH" "rm -rf '$remote_dir'"
+        [ "$binrpm_exitcode" == "0" ] || die "binary rpm build failed with exit code $binrpm_exitcode"
+    else
+        ayer-binrpm "$build_dir"
+    fi
+}
+
+function append_rpms() {
+    local git_list=$1
+    local previous_ref=$2
+
+    local rpm_dir="$build_dir/RPMS"
+    if [ -n "$previous_ref" ]; then
+        previous_dir="$YUM_REPO_DIR/$previous_ref"
+        if [ ! -d "$build_dir/deps" -a -d "$previous_dir/deps" ]; then
+            cp -al "$previous_dir/deps" "$build_dir/deps"
+        fi
+        for i in "$previous_dir/$build_os"/*; do
+            if [ ! -f "$i" ]; then
+                break
+            fi
+            if [ -f "$rpm_dir/$(basename "$i")" ]; then
+                continue
+            fi
+            local commit=$(rpm -q -p "$i" --changelog | head -2 | grep -E -o '[0-9a-z]{40}' || true)
+            echo "extracted commit $commit"
+            if [ -n "$commit" ] && grep -q "$commit" "$git_list"; then
+                cp -al "$i" "$rpm_dir"
+            fi
+        done
+    fi
+    createrepo "$rpm_dir" &>/dev/null
+}
+
+# body
+if [[ "$target_path" == dev/* ]]; then
+    project_baseurl="$YUM_REPO_BASEURL_DEV/$target_path"
+else
+    project_baseurl="$YUM_REPO_BASEURL_RELEASE/$target_path"
+fi
+
+base_target_dir="$YUM_REPO_DIR/$target_path"
+build_dir="$base_target_dir/build"
+
+rm -rf "$build_dir"
+mkdir -p "$build_dir"
+
+cd "$build_dir"
+mkdir -p SOURCES
+echo "$project_baseurl" > SOURCES/baseurl
+
+git_list="$build_dir/git-diff.list"
+create_build_plan "$git_list" "$previous_ref"
+execute_build_plan "$build_release" "$git_list"
+build_bin_rpms
+git_list="$build_dir/git-all.list"
+create_build_plan "$git_list" ""
+append_rpms "$git_list" "$previous_ref"

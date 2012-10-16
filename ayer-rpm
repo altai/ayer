@@ -1,91 +1,66 @@
 #!/bin/bash
 
-# use `ayer_treeish' environment variable to set branch or commit for tarring
-# HEAD is used by default
+source /usr/lib/ayer/functions.sh
 
-function get_tag() {
-    rpm -q --specfile "$1" --qf "%{$2}\n"| head -1 | sed 's,/,,g'
-}
+PROG=$(basename "$0")
 
-function die() {
-    echo "$@" >&2
-    exit 3
-}
+TEMP=`getopt -n $PROG  -o t:,r:,d:,b: -l treeish:,release:,builddir: -- "$@"` || exit 1
+eval set -- "$TEMP"
 
+build_treeish=HEAD
+build_release=
+build_builddir=~/rpmbuild
+build_rpmargs=-bs
 
-#RPM_BUILD_DIR$(mktemp -d /tmp/ayer.rpmbuild.XXXXXX)
-RPM_SRC_DIR=${RPM_BUILD_DIR}/SOURCES
-
-mkdir -p "$RPM_SRC_DIR"
-
-rpmbuild_args=""
-
-for arg in "$@"; do
-    if [[ "$arg" == *.spec ]]; then
-        spec_file="$arg"
-    else
-        rpmbuild_args="$rpmbuild_args $arg"
-    fi
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -t|--treeish)
+            build_treeish=$2
+            shift
+            ;;
+        -r|--release)
+            build_release=$2
+            shift
+            ;;
+        -d|--builddir)
+            build_builddir=$2
+            shift
+            ;;
+        -b)
+            build_rpmargs=-b$2
+            shift
+    esac
+    shift
 done
 
-if [ -z "$spec_file" ]; then
-    spec_file="$(echo *.spec|head -1)"
-fi
+src_dir=$build_builddir/SOURCES
+spec_dir=$build_builddir/SPECS
+mkdir -p "$src_dir" "$spec_dir"
 
-[ -r "$spec_file" ] || die "cannot find spec \`$spec_file'!"
+extract_pattern "$build_treeish" "*.spec" "$spec_dir/" | while read rel_spec_file; do 
+    spec_file="${spec_dir}/${rel_spec_file}"
 
-rpm_name=$(get_tag "$spec_file" name)
-rpm_version=$(get_tag "$spec_file" version)
-tar_base="${rpm_name}-${rpm_version}"
-gear_outdir="$tar_base"
-archive_ext=tar.gz
+    if [ -n "$build_release" ]; then
+        sed -i "s#Release:.*#Release:        ${build_release}%{?dist}#" "${spec_file}"
+    fi
 
-# if [ -r .gear-rules ]; then
-#     for word in $(grep '^tar' .gear-rules | sed "s/@version@/${rpm_version}/g" | sed "s/@name@/${rpm_name}/g"); do
-#         case $word in
-#             zip:|tar*:)
-#                 archive_ext=${word%:}
-#                 ;;
-#             name=*)
-#                 tar_base=${word#name=}
-#                 ;;
-#             base=*)
-#                 gear_outdir=${word#base=}
-#                 ;;
-#         esac
-#     done
-#     to_copy="$(grep '^copy:' .gear-rules | sed 's/copy://')"
-#     [ -n "$to_copy" ] && cp -v $to_copy "${RPM_SRC_DIR}"
-# fi
+    changelog_commit_msg="* $(date '+%a %b %d %Y') Ayer Build System $(rpm_get_tag ${spec_file} version)\\
+- build an RPM from commit $(git rev-parse $build_treeish)\\
+"
 
+    if ! grep -q '%changelog' "$spec_file"; then
+        echo -e '\n%changelog' >> "$spec_file"
+    fi
+    sed -i "s/%changelog.*/%changelog\\
+$changelog_commit_msg/" "$spec_file"
 
-if [[ $archive_ext = tar* ]]; then
-    archive_format=tar
-else
-    archive_format=zip
-fi
+    rpm_name=$(rpm_get_tag "$spec_file" name)
+    rpm_version=$(rpm_get_tag "$spec_file" version)
+    tar_base="${rpm_name}-${rpm_version}"
+    
+    main_tarball="$src_dir/$tar_base.tar.gz"
 
-case $archive_ext in
-    tar.gz)
-        compress_cmd=gzip
-        ;;
-    tar.bz2)
-        compress_cmd=bzip2
-        ;;
-    tar.xz)
-        compress_cmd=xz
-        ;;
-    *)
-        compress_cmd=""
-esac
+    git archive --format=tar --prefix="$tar_base"/ "$build_treeish" | gzip -c - > "$main_tarball"
 
-gear_outfile="$RPM_SRC_DIR/$tar_base.$archive_format"
-
-rm -f "$gear_outfile".*
-git archive --format="$archive_format" --prefix="$tar_base"/ "${ayer_treeish:-HEAD}" > "$gear_outfile"
-if [ -n "$compress_cmd" ]; then
-    $compress_cmd "$gear_outfile"
-fi
-
-rpmbuild $rpmbuild_args "$spec_file" --define "_sourcedir $RPM_SRC_DIR"
-
+    rpmbuild $build_rpmargs "$spec_file" --define "_sourcedir $src_dir"
+done

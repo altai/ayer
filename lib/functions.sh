@@ -1,13 +1,20 @@
+# -*- sh -*-
+
 AYER_CONFIG=${AYER_CONFIG:-~/.config/ayer}
 GERRIT_PORT=29418
 BASE_WORKDIR=~/.ayer
 GERRIT_SUBMITTABLE="CodeReview+2 Verified+1 -Verified-1 -CodeReview-2"
 build_os=centos6
 
-set -E
+set -e
 
-source "$AYER_CONFIG"
-# TODO: show errors if some variables are not set
+
+function load_config() {
+    source "$AYER_CONFIG"
+    git_dir="$BASE_WORKDIR/git"
+   # TODO: show errors if some variables are not set
+}
+
 
 function cd_to_hoy_top() {
     while true; do
@@ -39,10 +46,11 @@ function log() {
     echo "$@"
 }
 
-
 # args: repo_name repo_path refspec
 function git_fetch_refspec() {
-    local repo_name=$1 repo_path=$2 refspec=$3
+    local repo_name=$1 repo_path=$2
+    shift 2
+    local refspec=$@
     local repo_type=
     if [[ "$repo_name" == *.git ]]; then
         repo_type="--bare"
@@ -52,6 +60,13 @@ function git_fetch_refspec() {
         (cd "$repo_name" && git remote add origin "$repo_path")
     fi
     (cd "$repo_name" && git fetch origin $refspec)
+}
+
+
+# args: repo_name repo_path
+# fetches changes and heads
+function git_fetch_std() {
+    git_fetch_refspec "$1" "$2" +refs/changes/*:refs/remotes/origin/* +refs/heads/*:refs/remotes/origin/*
 }
 
 
@@ -102,106 +117,25 @@ function extract_pattern()
         done
 }
 
-# arguments: spec_file treeish build_version
-function update_spec() {
-    local spec_file="$1"
-    local treeish="$2"
-    local build_version="$3"
-
-    if [ -n "$build_version" ]; then
-        sed -i "s/Release: .*/Release:        ${build_version}%{?dist}/" "${spec_file}"
-    fi
-
-    changelog_commit_msg="* $(date '+%a %b %d %Y') Ayer Build System $(rpm_get_tag ${spec_file} version)\\
-- build an RPM from commit $(git rev-parse $treeish)\\
-"
-
-    if ! grep -q '%changelog' "$spec_file"; then
-        echo -e '\n%changelog' >> "$spec_file"
-    fi
-    sed -i "s/%changelog.*/%changelog\\
-$changelog_commit_msg/" "$spec_file"
-}
-
 # uses PWD as working dir
 function clean_srpms() {
     local build_dir=$PWD 
     rm -rf "$build_dir"/{SRPMS,RPMS,LOGS,SLOGS}
 }
 
-# arguments: git_repos_dir build_version
-# uses PWD as working dir
-# waits for git.list in PWD
-function build_srpms() {
-    local git_repos_dir=$1
-    local build_version=$2
 
-    local build_dir=$PWD 
-    local git_repos_list="${build_dir}/git.list"
-    local srpms_dir="$build_dir/SRPMS"
-    local logs_dir="$build_dir/SLOGS"
-    local spec_dir="$build_dir/SPECS"
-    mkdir -p "$logs_dir" "$spec_dir" "$srpms_dir"
-    mkdir -p "$git_repos_dir"
-
-    while read refspec repo_name; do
-        repo_name="${repo_name%.git}"
-        log "building src rpm for $repo_name"
-        cd "$git_repos_dir"
-        git_fetch_refspec "$git_repos_dir/${repo_name}.git" "$(gerrit_repo_ssh $repo_name)" "$refspec" &>/dev/null
-        cd "$git_repos_dir/${repo_name}.git"
-        git update-ref --no-deref HEAD FETCH_HEAD
-        log_filename="$logs_dir/$repo_name.log"
-        extract_pattern FETCH_HEAD "*.spec" "${spec_dir}/" | while read rel_spec_file; do 
-            spec_file="${spec_dir}/${rel_spec_file}"
-            update_spec "${spec_file}" HEAD $build_version
-            ayer_treeish=HEAD ayer-rpm -bs "${spec_file}" &> "$log_filename"
-            grep '^Wrote:.*.rpm' "$log_filename" | while read ignored rpm_name; do
-                mv "$rpm_name" "$srpms_dir/"
-            done
-        done
-    done < "$git_repos_list"
-}
-
-# uses PWD as working dir
-# waits for SRPMS dir inside PWD
-function build_final_rpms() {
-    local build_dir=$PWD 
-    local srpms_dir="$build_dir/SRPMS"
-
-    if [ -n "$BUILD_SERVER_SSH" ]; then
-        log -n "building binary rpms at $BUILD_SERVER_SSH"
-        local remote_dir=$(ssh "$BUILD_SERVER_SSH" "mktemp -d /tmp/ayer.XXXXXX")
-        log ":$remote_dir"
-        scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/" &>/dev/null
-        scp "$(which ayer-binrpm)" "$BUILD_SERVER_SSH:$remote_dir/" &>/dev/null
-        ssh "$BUILD_SERVER_SSH" "cd $remote_dir && ./ayer-binrpm" && binrpm_exitcode=0 || binrpm_exitcode=$?
-        rm -rf "$build_dir/"{RPMS,LOGS}
-        scp -r "$BUILD_SERVER_SSH:$remote_dir/{RPMS,LOGS}" "$build_dir" &>/dev/null
-        ssh "$BUILD_SERVER_SSH" "rm -rf '$remote_dir'"
-        [ "$binrpm_exitcode" == "0" ] || die "binary rpm build failed with exit code $binrpm_exitcode"
-    else
-        ayer-binrpm "$build_dir"
+function replace_dir() {
+    if [ -d "$1" ]; then
+        [ ! -d "$2" ] || mv "$2"{,.old}
+        mv "$1" "$2"
+        rm -fr "$2".old
     fi
 }
 
-# arguments: release_refspec create-release-arguments
-# uses PWD as working dir
-function build_release_srpm() {
-    local release_refspec="$1"
-    shift
-
-    local build_dir=$PWD 
-    local srpms_dir="$build_dir/SRPMS"
-    local logs_dir="$build_dir/SLOGS"
-    local log_filename="$logs_dir/release.log"
-    local release_git_dir="$build_dir/release"
-    mkdir -p "$logs_dir" "$srpms_dir"
-    git_fetch_refspec "$release_git_dir" "$(gerrit_repo_ssh release)" "$release_refspec" &>/dev/null
-    cd "$release_git_dir"
-    git checkout FETCH_HEAD &>/dev/null
-    ayer-create-release "$@" &> "$log_filename"
-    grep '^Wrote:.*.rpm' "$log_filename" | while read ignored rpm_name; do
-        mv "$rpm_name" "$srpms_dir/"
-    done
+function replace_repos() {
+    local base_target_dir="$1"
+    local build_dir=$base_target_dir/build
+    replace_dir "$build_dir/deps" "$base_target_dir/deps"
+    replace_dir "$build_dir/RPMS" "$base_target_dir/$build_os"
+    #rm -rf "$build_dir"
 }

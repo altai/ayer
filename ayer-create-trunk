@@ -1,9 +1,13 @@
 #!/bin/bash
 
-. /usr/lib/ayer/functions.sh
+source /usr/lib/ayer/functions.sh
+
+load_config
 
 base_version="${1%_trunk}"
 trunk_name="${2%_trunk}_trunk"
+
+[ -n "$base_version" -a -n "$trunk_name" ] || die "usage: $(basename $0) base_version trunk_name"
 
 # TODO: check for validity base_version, trunk_name
 
@@ -15,6 +19,7 @@ cd "$git_repos_dir"
 git_fetch_refspec "release.git" "$(gerrit_repo_ssh release)" "refs/tags/$base_version:$trunk_name"
 cd ./release.git
 git push origin +$trunk_name:refs/heads/$trunk_name
+build_commit=$(git rev-parse $trunk_name)
 
 git ls-tree -r $base_version | while read mode type hash path; do
     if [ "$mode" == 160000 ]; then
@@ -27,24 +32,4 @@ git ls-tree -r $base_version | while read mode type hash path; do
     fi
 done
 
-target_path="$trunk_name/$build_os"
-base_target_dir="$YUM_REPO_DIR/$target_path"
-main_repo_dir="$base_target_dir/main"
-
-build_dir="$base_target_dir/build"
-
-mkdir -p "$build_dir"
-
-cd "$build_dir"
-rm -rf *RPMS *LOGS
-build_release_srpm "$release_refspec" --dev-url $YUM_DEV_BASE_URL --trunk-path $target_path  --release "${build_branch%%_*}"
-cd "$build_dir"
-build_final_rpms
-
-rpms_dir="$build_dir/RPMS"
-mv "$rpms_dir/"*-release-*rpm "$base_target_dir"
-
-for subdir in main deps; do
-    mkdir -p "$base_target_dir/$subdir"
-    createrepo "$base_target_dir/$subdir"
-done
+ayer-build-trunk "$trunk_name"
