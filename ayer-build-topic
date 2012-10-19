@@ -6,7 +6,7 @@ load_config
 
 PROG=$(basename "$0")
 
-TEMP=`getopt -n $PROG  -o c:,u: -l commit:,user: -- "$@"` || exit 1
+TEMP=`getopt -n $PROG  -o c:,u:,t:,b: -l commit:,user:,branch:,topic: -- "$@"` || exit 1
 eval set -- "$TEMP"
 
 while [ "$#" -gt 0 ]; do
@@ -19,28 +19,19 @@ while [ "$#" -gt 0 ]; do
             build_user=$2
             shift
             ;;
+        -b|--branch)
+            build_branch=$2
+            shift
+            ;;
+        -t|--topic)
+            build_topic=$2
+            shift
+            ;;
     esac
     shift
 done
 [ -n "$build_commit" ] || die "build commit is unknown"
 [ -n "$build_user" ] || die "build user is unknown"
-
-
-commit_info_file=$(mktemp /tmp/ayer.build.XXXXXX)
-gerrit_command query "project:$BASE_PROJECT commit:$build_commit" --current-patch-set > $commit_info_file
-while read key value; do
-    case "$key" in
-        branch:)
-            build_branch=$value
-            ;;
-        topic:)
-            build_topic=$value
-            ;;
-        ref:)
-            release_refspec=$value
-    esac
-done < "$commit_info_file"
-rm "$commit_info_file"
 [ -n "$build_branch" ] || die "build branch is unknown"
 [ -n "$build_topic" ] || die "build topic is unknown"
 
@@ -48,3 +39,5 @@ target_path="dev/$build_user/$build_branch/$build_topic"
 previous_ref="$build_branch"
 
 ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_branch"
+
+replace_repos "$YUM_REPO_DIR/$target_path"

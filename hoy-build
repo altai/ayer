@@ -6,14 +6,15 @@ target_feature=$(git rev-parse --abbrev-ref HEAD)
 
 cd_to_hoy_top
 
-[ -n "$branch" ] || die "\`branch' must be set in .ayer"
+[ -n "$BRANCH" ] || die "BRANCH must be set in .ayer"
+[ -n "$USER" ] || USER=$(whoami)
 
 upload_type=drafts
 
 { git submodule -q foreach 'echo $name'; echo .; } | while read repo_path; do
     cd $hoy_top/$repo_path
     local_commit=$(git rev-parse HEAD)
-    remote_commit=$(git rev-parse remotes/origin/$branch || true)
+    remote_commit=$(git rev-parse remotes/origin/$BRANCH || true)
     if [ "$local_commit" == "$remote_commit" ]; then
         continue
     fi
@@ -24,6 +25,13 @@ upload_type=drafts
             continue
         fi
     fi
-    git push origin HEAD:refs/$upload_type/$branch/$target_feature
+    git push origin HEAD:refs/$upload_type/$BRANCH/$target_feature
     git update-ref $published_ref HEAD
 done
+
+if [ -n "$JENKINS_BASEURL" ]; then
+    curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${USER}&COMMIT=$(git rev-parse HEAD)&BRANCH=${BRANCH}&TOPIC=${target_feature}"
+    [ -z "$YUM_REPO_BASEURL_DEV" ] || echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$USER/$BRANCH/$target_feature"
+else
+    echo "JENKINS_BASEURL must be set in .ayer"
+fi

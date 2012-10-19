@@ -2,25 +2,33 @@
 
 . /usr/lib/ayer/functions.sh
 
-treeish_start="$1"
-treeish_finish="$2"
+source /usr/lib/ayer/functions.sh
 
+target_feature=$(git rev-parse --abbrev-ref HEAD)
 
-function build_changelog() {
-    cd "$git_repos_dir"
-    mkdir -p "$yum_final_repo_dir"
-    changelog_file="$yum_final_repo_dir/../ChangeLog.$feature_branch"
-    echo "* $(date '+%a %b %d %Y')" > "$changelog_file"
-    while read repo_path; do
-        repo_name="$(cut_repo_name "$repo_path")"
-        log "generating changelog for $repo_name"     
-        cd "$repo_name"
-        echo "- $repo_name" >> "$changelog_file"
-        git log --format='    - %s' master-git/$previous_branch..origin/$feature_branch >> "$changelog_file"
-        cd ..
-    done < "$git_repos_list"
-}
+cd_to_hoy_top
 
+if [ -n "$1" ]; then
+    base_treeish=$1
+else
+    [ -n "$BRANCH" ] || die "BRANCH must be set in .ayer"
+    base_treeish=remotes/origin/$BRANCH
+fi
 
-build_changelog
-
+{ echo .; git submodule -q foreach 'echo $name'; } | while read repo_path; do
+    cd $hoy_top/$repo_path
+    local_commit=$(git rev-parse HEAD)
+    remote_commit=$(git rev-parse $base_treeish) || continue
+    if [ "$local_commit" == "$remote_commit" ]; then
+        continue
+    fi
+    version=
+    for i in *.spec; do
+        if [ -f $i ]; then
+            version="-$(rpm_get_tag $i version)"
+            break
+        fi
+    done
+    echo "$(basename $PWD)$version:"
+    git --no-pager log --format='    - %s' $remote_commit..HEAD || true
+done
