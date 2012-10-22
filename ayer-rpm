@@ -37,7 +37,7 @@ src_dir=$build_builddir/SOURCES
 spec_dir=$build_builddir/SPECS
 mkdir -p "$src_dir" "$spec_dir"
 
-extract_pattern "$build_treeish" "*.spec" "$spec_dir/" | while read rel_spec_file; do 
+extract_pattern "$build_treeish" "*.spec" "$spec_dir/" --full-tree | while read rel_spec_file; do 
     spec_file="${spec_dir}/${rel_spec_file}"
 
     if [ -n "$build_release" ]; then

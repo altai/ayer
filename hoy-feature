@@ -11,6 +11,7 @@ cd_to_hoy_top
 
 git fetch origin --recurse-submodules --tags
 git checkout -t -B "$target_feature" "origin/$target_branch"
+git submodule init
 git submodule update
 git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
 
