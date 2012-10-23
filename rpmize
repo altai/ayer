@@ -1,6 +1,7 @@
 #!/bin/sh
 
 
+
 function get_tag() {
     rpm -q --specfile "$1" --qf "%{$2}\n"| head -1 | sed 's,/,,g'
 }
