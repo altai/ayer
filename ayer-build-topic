@@ -41,3 +41,8 @@ previous_ref="$build_branch"
 ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_branch"
 
 replace_repos "$YUM_REPO_DIR/$target_path"
+
+
+echo "checking whether build commit can be accepted to trunk"
+ayer-is-acceptable -c "$build_commit" -b "$build_branch" >/dev/null || die "build commit cannot be accepted to trunk"
+echo "build commit is acceptable"

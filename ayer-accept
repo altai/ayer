@@ -6,7 +6,7 @@ load_config
 
 PROG=$(basename "$0")
 
-TEMP=`getopt -n $PROG  -o c: -l commit: -- "$@"` || exit 1
+TEMP=`getopt -n $PROG  -o c:,b: -l commit:,branch: -- "$@"` || exit 1
 eval set -- "$TEMP"
 
 while [ "$#" -gt 0 ]; do
@@ -15,28 +15,19 @@ while [ "$#" -gt 0 ]; do
             build_commit=$2
             shift
             ;;
+        -b|--branch)
+            build_branch=$2
+            shift
+            ;;
     esac
     shift
 done
 [ -n "$build_commit" ] || die "build commit is unknown"
-
-
-#########
-# FIXME: this code is too long...
-commit_info_file=$(mktemp /tmp/ayer.build.XXXXXX)
-gerrit_command query "project:release commit:$build_commit" --current-patch-set > $commit_info_file
-while read key value; do
-    case "$key" in
-        branch:)
-            build_branch=$value
-            ;;
-        ref:)
-            release_refspec=$value
-    esac
-done < "$commit_info_file"
-rm "$commit_info_file"
 [ -n "$build_branch" ] || die "build branch is unknown"
-#########
+
+
+commits_to_submit=$(ayer-is-acceptable -c "$build_commit" -b "$build_branch") || die "build commit cannot be accepted to trunk"
+
 
 trunk_name=$build_branch
 target_path="dev/$trunk_name"
@@ -49,22 +40,8 @@ base_target_dir="$YUM_REPO_DIR/$target_path"
 
 ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_branch"
 
-build_dir="$base_target_dir/build"
-git_list="$build_dir/git-diff.list"
-
-while read treeish repo_name; do
-    repo_name="${repo_name%.git}"
-    cd "$git_dir/${repo_name}.git"
-    difference=$(git rev-list origin/$build_branch..$treeish)
-    if [ -n "$difference" ]; then
-        ssh -p "$GERRIT_PORT" "$GERRIT_SSH" gerrit review --project "$repo_name" --message "'Accepted to trunk'" --submit $difference &>/dev/null
-        git fetch origin "$build_branch:refs/remotes/origin/$build_branch"
-        difference=$(git cherry -v origin/$build_branch $treeish)
-        if [ -n "$difference" ]; then
-            die "not all commits can be accepted to $repo_name:
-$difference"
-        fi
-    fi
-done < "$git_list"
+if [ -n "$commits_to_submit" ]; then
+    gerrit_command review --message "'Accepted to trunk'" --submit $commits_to_submit &>/dev/null
+fi
 
 replace_repos "$YUM_REPO_DIR/$target_path"

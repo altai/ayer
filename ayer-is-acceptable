@@ -1,0 +1,79 @@
+#!/bin/bash
+
+source /usr/lib/ayer/functions.sh
+
+load_config
+
+PROG=$(basename "$0")
+
+TEMP=`getopt -n $PROG  -o c:,b: -l commit:,branch: -- "$@"` || exit 1
+eval set -- "$TEMP"
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -c|--commit)
+            build_commit=$2
+            shift
+            ;;
+        -b|--branch)
+            build_branch=$2
+            shift
+            ;;
+    esac
+    shift
+done
+[ -n "$build_commit" ] || die "build commit is unknown"
+[ -n "$build_branch" ] || die "build branch is unknown"
+
+upstream=origin/$build_branch
+is_acceptable=y
+commits_to_submit=
+
+function check_git_project() {
+    local project="$1"
+    local new_commit="$2"
+    git_fetch_std "$git_dir/${project}.git" "$(gerrit_repo_ssh $project)" &>/dev/null
+    cd "$git_dir/${project}.git"
+    local cherry=$(git cherry -v "$new_commit" "$upstream")
+    if [ -n "$cherry" ]; then
+        is_acceptable=n
+        echo "$project: cannot fast-forward:" >&2
+        echo "$cherry" | sed 's/^/\t/' >&2
+    fi
+    # to search
+    local commits=$(git rev-list "$upstream".."$new_commit" | sort)
+    if [ -n "$commits" ]; then
+        local query_commits=$(echo "$commits" | sed 's/^/OR commit:/')
+        query_commits="${query_commits#OR }"
+        local submittable_commits=$(
+            gerrit_command query --current-patch-set "($query_commits) AND (is:open $GERRIT_SUBMITTABLE)" |
+            grep 'revision:' | while read key value; do echo $value; done | sort)
+        if [ "$commits" != "$submittable_commits" ]; then
+            is_acceptable=n
+            echo "$project: not all commits are submittable:" >&2
+            for com in $commits; do
+                if [[ "$submittable_commits" != *$com* ]]; then
+                    echo -e "\t  $(git log -1 --format=oneline $com)" >&2
+                fi
+            done
+        else
+            commits_to_submit="$commits $commits_to_submit"
+        fi
+    fi
+}
+
+check_git_project "${BASE_PROJECT}" "$build_commit"
+
+git ls-tree -r "$build_commit" | {
+    while read mode type hash path; do
+        if [ "$mode" == 160000 ]; then
+            check_git_project "$(basename "$path")" "$hash"
+        fi
+    done
+
+    if [ "$is_acceptable" == "y" ]; then
+        echo "$commits_to_submit"
+    else
+        exit 1
+    fi
+}

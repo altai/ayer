@@ -3,7 +3,7 @@
 AYER_CONFIG=${AYER_CONFIG:-~/.config/ayer}
 GERRIT_PORT=29418
 BASE_WORKDIR=~/.ayer
-GERRIT_SUBMITTABLE="CodeReview+2 Verified+1 -Verified-1 -CodeReview-2"
+GERRIT_SUBMITTABLE="CodeReview+2 Verified+1 NOT Verified-1 NOT CodeReview-2"
 build_os=centos6
 
 set -e
