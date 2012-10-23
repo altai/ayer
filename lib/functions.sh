@@ -69,6 +69,11 @@ function git_fetch_std() {
     git_fetch_refspec "$1" "$2" +refs/changes/*:refs/remotes/origin/* +refs/heads/*:refs/remotes/origin/*
 }
 
+# args: repo_name repo_path
+# fetches tags and heads
+function git_fetch_pub() {
+    git_fetch_refspec "$1" "$2" --tags +refs/heads/*:refs/remotes/origin/*
+}
 
 function gerrit_repo_ssh()
 {

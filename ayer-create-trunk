@@ -4,7 +4,7 @@ source /usr/lib/ayer/functions.sh
 
 load_config
 
-base_version="${1%_trunk}"
+base_version="${1}"
 trunk_name="${2%_trunk}_trunk"
 
 [ -n "$base_version" -a -n "$trunk_name" ] || die "usage: $(basename $0) base_version trunk_name"
@@ -13,22 +13,26 @@ trunk_name="${2%_trunk}_trunk"
 
 git_repos_dir="${BASE_WORKDIR}/git"
 
+if [[ $base_version == *_trunk ]]; then
+    base_version=origin/$base_version
+fi
+
 mkdir -p "$git_repos_dir"
 
 cd "$git_repos_dir"
-git_fetch_refspec "release.git" "$(gerrit_repo_ssh release)" "refs/tags/$base_version:$trunk_name"
-cd ./release.git
-git push origin +$trunk_name:refs/heads/$trunk_name
-build_commit=$(git rev-parse $trunk_name)
+git_fetch_pub "${BASE_PROJECT}.git" "$(gerrit_repo_ssh ${BASE_PROJECT})"
+cd ./${BASE_PROJECT}.git
+git push origin +$base_version:refs/heads/$trunk_name
+build_commit=$(git rev-parse $base_version)
 
 git ls-tree -r $base_version | while read mode type hash path; do
     if [ "$mode" == 160000 ]; then
         cd "$git_repos_dir"
         git_project_dir="$(basename "$path").git"
         origin_path="$(gerrit_repo_ssh "$git_project_dir")"
-        git_fetch_refspec "${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")" "refs/tags/$base_version:$trunk_name"
+        git_fetch_pub "${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")"
         cd "${git_project_dir}"
-        git push origin +$trunk_name:refs/heads/$trunk_name
+        git push origin +$base_version:refs/heads/$trunk_name
     fi
 done
 

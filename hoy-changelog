@@ -23,12 +23,14 @@ fi
         continue
     fi
     version=
-    for i in *.spec; do
-        if [ -f $i ]; then
-            version="-$(rpm_get_tag $i version)"
-            break
-        fi
-    done
+    if which rpm &>/dev/null; then
+        for i in *.spec; do
+            if [ -f $i ]; then
+                version="-$(rpm_get_tag $i version)"
+                break
+           fi
+       done
+    fi
     echo "$(basename $PWD)$version:"
     git --no-pager log --format='    - %s' $remote_commit..HEAD || true
 done
