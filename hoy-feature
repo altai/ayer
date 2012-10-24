@@ -19,6 +19,10 @@ fi
 
 [ -n "$target_feature" -a -n "$target_branch" ] || die "usage: $(basename $0) feature [branch]"
 
+git submodule init
+git fetch origin --recurse-submodules --tags
+git submodule update
+
 if git rev-parse "$target_feature" &>/dev/null; then
     # the feature already exists - just checkout
     git checkout "$target_feature"
@@ -26,15 +30,11 @@ if git rev-parse "$target_feature" &>/dev/null; then
     exit 0
 fi
 
-git fetch origin --recurse-submodules --tags
-
 if ! git rev-parse "origin/$target_branch" &>/dev/null; then
     die "trunk \`$target_branch' is not found"
 fi
 
 git checkout -t -B "$target_feature" "origin/$target_branch"
-git submodule init
-git submodule update
 git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
 
 if [ ! -f .git/hooks/commit-msg ]; then
