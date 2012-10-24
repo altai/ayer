@@ -44,5 +44,8 @@ replace_repos "$YUM_REPO_DIR/$target_path"
 
 
 echo "checking whether build commit can be accepted to trunk"
-ayer-is-acceptable -c "$build_commit" -b "$build_branch" >/dev/null || die "build commit cannot be accepted to trunk"
-echo "build commit is acceptable"
+if ayer-is-acceptable "$build_commit" "$build_branch" >/dev/null; then
+    echo "build commit is acceptable"
+else
+    echo "WARNING: build commit cannot be accepted to trunk"
+fi

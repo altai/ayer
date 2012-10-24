@@ -19,9 +19,9 @@ function create_build_plan() {
     local git_list=$1
     local previous_ref=$2
 
-    git_fetch_std "$git_dir/${BASE_PROJECT}.git" "$(gerrit_repo_ssh $BASE_PROJECT)" &>/dev/null
+    git_fetch_repos $build_commit >/dev/null
     cd "$git_dir/${BASE_PROJECT}.git"
-    build_commit=$(git rev-parse $build_commit || die "build commit \`$build_commit' is unknown")
+    build_commit=$(git rev-parse $build_commit)
 
     echo "$build_commit $BASE_PROJECT" > $git_list
     if [ -n "$previous_ref" ]; then
@@ -55,7 +55,6 @@ function execute_build_plan() {
     while read refspec repo_name; do
         repo_name="${repo_name%.git}"
         echo "processing repository $repo_name"
-        git_fetch_std "$git_dir/${repo_name}.git" "$(gerrit_repo_ssh $repo_name)" &>/dev/null
         cd "$git_dir/${repo_name}.git"
         if [ "$repo_name" == deps ]; then
             # FIXME: ignore deps now!
@@ -67,7 +66,7 @@ function execute_build_plan() {
             find "$build_dir/deps/" -type f -name '*rpm' | while read f; do
                 repo_dir=$(dirname $f)
                 if [ ! -d "$repo_dir/repodata" ]; then
-                    createrepo "$repo_dir" &>/dev/null
+                    createrepo "$repo_dir" >/dev/null
                 fi
             done
         else
@@ -88,11 +87,11 @@ function build_bin_rpms() {
         echo -n "building binary rpms at $BUILD_SERVER_SSH"
         local remote_dir=$(ssh "$BUILD_SERVER_SSH" "mktemp -d /tmp/ayer.XXXXXX")
         echo ":$remote_dir"
-        scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/" &>/dev/null
-        scp "$(which ayer-binrpm)" "$BUILD_SERVER_SSH:$remote_dir/" &>/dev/null
+        scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
+        scp "$(which ayer-binrpm)" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
         ssh "$BUILD_SERVER_SSH" "cd $remote_dir && ./ayer-binrpm" && binrpm_exitcode=0 || binrpm_exitcode=$?
         rm -rf "$build_dir/"{RPMS,LOGS}
-        scp -r "$BUILD_SERVER_SSH:$remote_dir/{RPMS,LOGS}" "$build_dir" &>/dev/null
+        scp -r "$BUILD_SERVER_SSH:$remote_dir/{RPMS,LOGS}" "$build_dir" >/dev/null
         ssh "$BUILD_SERVER_SSH" "rm -rf '$remote_dir'"
         [ "$binrpm_exitcode" == "0" ] || die "binary rpm build failed with exit code $binrpm_exitcode"
     else
@@ -100,7 +99,7 @@ function build_bin_rpms() {
     fi
     echo "signing rpms"
     for i in "$build_dir/RPMS"/*rpm; do
-        rpm-sign $i
+        ayer-rpm-sign $i
     done > "$build_dir/LOGS/sign.log"
 }
 
@@ -127,7 +126,7 @@ function append_rpms() {
             fi
         done
     fi
-    createrepo "$rpm_dir" &>/dev/null
+    createrepo "$rpm_dir" >/dev/null
 }
 
 # body

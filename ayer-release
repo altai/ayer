@@ -7,14 +7,14 @@ source /usr/lib/ayer/functions.sh
 load_config
 
 function create_and_publish_tag() {
-    local git_project_dir="$1"
-    git_fetch_refspec "${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")" "$trunk_name:refs/heads/$trunk_name"
-    cd "${git_project_dir}"
-    git tag --force "$version_name" "$trunk_name"
-    git push --tags origin
+    local project_name="$1"
+    cd "${git_dir}/${project_name}.git"
+    git tag --force "$version_name" "origin/$trunk_name"
+    git push origin "+$version_name"
 }
 
 version_name="${1%_trunk}"
+[ -n "$version_name" ] || die "usage: $(basename $0) version_name"
 trunk_name="${version_name}_trunk"
 
 # TODO: check trunk_name for validity
@@ -25,20 +25,17 @@ target_path="$version_name"
 previous_ref=""
 build_release="$trunk_name"
 
-[ ! -d "$YUM_REPO_DIR/$target_path" ] || die "error: release directory \`$YUM_REPO_DIR/$target_path' already exists"
+repodata_dir=$YUM_REPO_DIR/$target_path/$build_os/repodata
+[ ! -d "$repodata_dir" ] || die "error: looks like $version_name is released: directory \`$repodata_dir' already exists"
 
 ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_release"
 
-git_repos_dir="${BASE_WORKDIR}/git"
-mkdir -p "$git_repos_dir"
-cd "$git_repos_dir"
-create_and_publish_tag ${BASE_PROJECT}.git
+create_and_publish_tag ${BASE_PROJECT}
 
-cd "$git_repos_dir/${BASE_PROJECT}.git"
-git ls-tree -r "$trunk_name" | while read mode type hash path; do
+cd "$git_dir/${BASE_PROJECT}.git"
+git ls-tree -r "origin/$trunk_name" | while read mode type hash path; do
     if [ "$mode" == 160000 ]; then
-        cd "$git_repos_dir"
-        create_and_publish_tag "$(basename "$path").git"
+        create_and_publish_tag "$(basename "$path")"
     fi
 done
 

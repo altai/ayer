@@ -9,7 +9,7 @@ cd_to_hoy_top
 [ -n "$BRANCH" ] || die "BRANCH must be set in .ayer"
 [ -n "$USER" ] || USER=$(whoami)
 
-upload_type=drafts
+upload_type=for
 
 { git submodule -q foreach 'echo $name'; echo .; } | while read repo_path; do
     cd $hoy_top/$repo_path

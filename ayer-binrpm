@@ -1,5 +1,5 @@
 #!/bin/bash
-# requires: yum-utils rpm-build
+# requires: yum-utils rpm-build openssh-clients
 
 function die() {
     echo "$@" >&2

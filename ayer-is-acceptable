@@ -4,26 +4,10 @@ source /usr/lib/ayer/functions.sh
 
 load_config
 
-PROG=$(basename "$0")
+build_commit=$1
+build_branch=$2
 
-TEMP=`getopt -n $PROG  -o c:,b: -l commit:,branch: -- "$@"` || exit 1
-eval set -- "$TEMP"
-
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        -c|--commit)
-            build_commit=$2
-            shift
-            ;;
-        -b|--branch)
-            build_branch=$2
-            shift
-            ;;
-    esac
-    shift
-done
-[ -n "$build_commit" ] || die "build commit is unknown"
-[ -n "$build_branch" ] || die "build branch is unknown"
+[ -n "$build_commit" -a -n "$build_branch" ] || die "usage: $(basename $0) build_commit build_branch"
 
 upstream=origin/$build_branch
 is_acceptable=y
@@ -32,7 +16,6 @@ commits_to_submit=
 function check_git_project() {
     local project="$1"
     local new_commit="$2"
-    git_fetch_std "$git_dir/${project}.git" "$(gerrit_repo_ssh $project)" &>/dev/null
     cd "$git_dir/${project}.git"
     local cherry=$(git cherry -v "$new_commit" "$upstream")
     if [ -n "$cherry" ]; then
@@ -62,6 +45,7 @@ function check_git_project() {
     fi
 }
 
+git_fetch_repos "$build_commit" >/dev/null
 check_git_project "${BASE_PROJECT}" "$build_commit"
 
 git ls-tree -r "$build_commit" | {

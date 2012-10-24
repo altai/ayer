@@ -11,27 +11,19 @@ trunk_name="${2%_trunk}_trunk"
 
 # TODO: check for validity base_version, trunk_name
 
-git_repos_dir="${BASE_WORKDIR}/git"
-
 if [[ $base_version == *_trunk ]]; then
     base_version=origin/$base_version
 fi
 
-mkdir -p "$git_repos_dir"
+git_fetch_repos $base_version
 
-cd "$git_repos_dir"
-git_fetch_pub "${BASE_PROJECT}.git" "$(gerrit_repo_ssh ${BASE_PROJECT})"
-cd ./${BASE_PROJECT}.git
+cd "${git_dir}/${BASE_PROJECT}.git"
 git push origin +$base_version:refs/heads/$trunk_name
-build_commit=$(git rev-parse $base_version)
 
 git ls-tree -r $base_version | while read mode type hash path; do
     if [ "$mode" == 160000 ]; then
-        cd "$git_repos_dir"
         git_project_dir="$(basename "$path").git"
-        origin_path="$(gerrit_repo_ssh "$git_project_dir")"
-        git_fetch_pub "${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")"
-        cd "${git_project_dir}"
+        cd "$git_dir/${git_project_dir}"
         git push origin +$base_version:refs/heads/$trunk_name
     fi
 done

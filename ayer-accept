@@ -4,29 +4,13 @@ source /usr/lib/ayer/functions.sh
 
 load_config
 
-PROG=$(basename "$0")
+build_commit=$1
+build_branch=$2
 
-TEMP=`getopt -n $PROG  -o c:,b: -l commit:,branch: -- "$@"` || exit 1
-eval set -- "$TEMP"
+[ -n "$build_commit" -a -n "$build_branch" ] || die "usage: $(basename $0) build_commit build_branch"
 
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        -c|--commit)
-            build_commit=$2
-            shift
-            ;;
-        -b|--branch)
-            build_branch=$2
-            shift
-            ;;
-    esac
-    shift
-done
-[ -n "$build_commit" ] || die "build commit is unknown"
-[ -n "$build_branch" ] || die "build branch is unknown"
-
-
-commits_to_submit=$(ayer-is-acceptable -c "$build_commit" -b "$build_branch") || die "build commit cannot be accepted to trunk"
+echo "checking whether build commit can be accepted to trunk"
+commits_to_submit=$(ayer-is-acceptable "$build_commit" "$build_branch") || die "build commit cannot be accepted to trunk"
 
 
 trunk_name=$build_branch
@@ -41,7 +25,7 @@ base_target_dir="$YUM_REPO_DIR/$target_path"
 ayer-build-function "$build_commit" "$previous_ref" "$target_path" "$build_branch"
 
 if [ -n "$commits_to_submit" ]; then
-    gerrit_command review --message "'Accepted to trunk'" --submit $commits_to_submit &>/dev/null
+    gerrit_command review --message "'Accepted to trunk'" --submit $commits_to_submit >/dev/null
 fi
 
 replace_repos "$YUM_REPO_DIR/$target_path"

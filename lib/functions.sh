@@ -15,7 +15,6 @@ function load_config() {
    # TODO: show errors if some variables are not set
 }
 
-
 function cd_to_hoy_top() {
     while true; do
         if [ "$PWD" == "/" ]; then
@@ -42,10 +41,6 @@ function rpm_get_tag() {
 }
 
 
-function log() {
-    echo "$@"
-}
-
 # args: repo_name repo_path refspec
 function git_fetch_refspec() {
     local repo_name=$1 repo_path=$2
@@ -62,17 +57,25 @@ function git_fetch_refspec() {
     (cd "$repo_name" && git fetch origin $refspec)
 }
 
-
 # args: repo_name repo_path
-# fetches changes and heads
+# fetches changes, heads, and tags
 function git_fetch_std() {
-    git_fetch_refspec "$1" "$2" +refs/changes/*:refs/remotes/origin/* +refs/heads/*:refs/remotes/origin/*
+    git_fetch_refspec "$1" "$2" --tags +refs/changes/*:refs/remotes/origin/* +refs/heads/*:refs/remotes/origin/*
 }
 
-# args: repo_name repo_path
-# fetches tags and heads
-function git_fetch_pub() {
-    git_fetch_refspec "$1" "$2" --tags +refs/heads/*:refs/remotes/origin/*
+function git_fetch_repos() {
+    local base_treeish="$1"
+    mkdir -p "$git_dir"
+    cd "$git_dir"
+    git_fetch_std "${BASE_PROJECT}.git" "$(gerrit_repo_ssh ${BASE_PROJECT})"
+    cd "./${BASE_PROJECT}.git"
+    git rev-parse $base_treeish &>/dev/null || die "\`$base_treeish' is not found in ${BASE_PROJECT}"
+    git ls-tree -r $base_treeish | while read mode type hash path; do
+        if [ "$mode" == 160000 ]; then
+            git_project_dir="$(basename "$path").git"
+            git_fetch_std "${git_dir}/${git_project_dir}" "$(gerrit_repo_ssh "$git_project_dir")"
+        fi
+    done
 }
 
 function gerrit_repo_ssh()
