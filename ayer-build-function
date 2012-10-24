@@ -81,6 +81,8 @@ function execute_build_plan() {
 
 function build_bin_rpms() {
     local srpms_dir="$build_dir/SRPMS"
+    local build_script=ayer-mock
+    local build_scrpit_args="altai"
 
     cd "$build_dir"
     if [ -n "$BUILD_SERVER_SSH" ]; then
@@ -88,14 +90,14 @@ function build_bin_rpms() {
         local remote_dir=$(ssh "$BUILD_SERVER_SSH" "mktemp -d /tmp/ayer.XXXXXX")
         echo ":$remote_dir"
         scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
-        scp "$(which ayer-binrpm)" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
-        ssh "$BUILD_SERVER_SSH" "cd $remote_dir && ./ayer-binrpm" && binrpm_exitcode=0 || binrpm_exitcode=$?
+        scp "$(which "$build_script")" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
+        ssh "$BUILD_SERVER_SSH" "cd $remote_dir && \"./$build_script\" $build_script_args" && binrpm_exitcode=0 || binrpm_exitcode=$?
         rm -rf "$build_dir/"{RPMS,LOGS}
         scp -r "$BUILD_SERVER_SSH:$remote_dir/{RPMS,LOGS}" "$build_dir" >/dev/null
         ssh "$BUILD_SERVER_SSH" "rm -rf '$remote_dir'"
         [ "$binrpm_exitcode" == "0" ] || die "binary rpm build failed with exit code $binrpm_exitcode"
     else
-        ayer-binrpm "$build_dir"
+        "$build_script" $build_scrpit_args "$build_dir"
     fi
     echo "signing rpms"
     for i in "$build_dir/RPMS"/*rpm; do

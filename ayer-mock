@@ -1,0 +1,63 @@
+#!/bin/bash -e
+
+CONFIG_DIR="$HOME/.config/ayer-mock"
+mock_configdir="$CONFIG_DIR/mock"
+
+# Usage: "$0" <mock_root> <root_dir>
+
+mock_root=${1:-ayer}
+root_dir=$(readlink -f ${2:-$PWD})
+
+src_repo_dir="$root_dir/SRPMS"
+bin_repo_dir="$root_dir/RPMS"
+log_dir="$root_dir/LOGS"
+# XXX: use mktemp?
+result_dir="$root_dir/tmp"
+
+die () {
+    echo "$@" >&2
+    exit 1
+}
+
+# environment sanity check -- very basic
+
+[ -d "$src_repo_dir" ] || die "Source directory not found"
+[ -d "$mock_configdir" ] || die "Private mock configuration not found."
+[ -r "$mock_configdir/$mock_root.cfg" ] || die "Mock root $mock_root not configured"
+
+# do the real work
+
+rm -rf "$bin_repo_dir" "$log_dir" "$result_dir"
+mkdir -p "$bin_repo_dir" "$log_dir"
+
+pushd "$src_repo_dir" &>/dev/null
+
+for src_rpm in *.src.rpm; do
+    echo "Building $src_rpm"
+    log_filename="$log_dir/$src_rpm.log"
+    rm -rf "$result_dir" 2>/dev/null || :
+    mkdir -p "$result_dir"
+
+    mock \
+        --root "$mock_root" \
+        --configdir "$mock_configdir" \
+        --resultdir "$result_dir" \
+        --verbose \
+        --rebuild "$src_rpm" \
+        &> "$log_filename" || die "Mock failed"
+
+    for bin_rpm in "$result_dir"/*.rpm; do
+        case "$bin_rpm" in
+            # When there are no RPMS in result_dir, we have only one iteration,
+            # with '*', so we put a warning here.
+            *\**)
+                echo "WARNING: No RPM produced for $src_rpm" ;;
+            # Ignore src rpms mock puts to output dirs
+            *.src.rpm) ;; # ignored
+            *) mv "$bin_rpm" "bin_repo_dir"
+        esac
+    done
+done
+
+popd &>/dev/null
+
