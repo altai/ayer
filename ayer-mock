@@ -1,0 +1,60 @@
+#!/bin/bash -e
+
+CONFIG_DIR="$HOME/.config/ayer"
+mock_configdir="$CONFIG_DIR/mock"
+
+# Usage: "$0" <mock_root> <root_dir>
+
+mock_root=${1:-ayer}
+root_dir=$(readlink -f ${2:-$PWD})
+
+src_repo_dir="$root_dir/SRPMS"
+bin_repo_dir="$root_dir/RPMS"
+log_dir="$root_dir/LOGS"
+result_dir="$root_dir/RESULTS"
+
+die () {
+    echo "$@" >&2
+    exit 1
+}
+
+# Apply test to first file in glob
+# Example usage: test_first -r *.rpm
+test_first () {
+    test "$1" "$2"
+}
+
+# environment sanity check -- very basic
+
+test_first -r "$src_repo_dir"/*.src.rpm || die "Nothing to build."
+[ -d "$mock_configdir" ] || die "Private mock configuration not found."
+[ -r "$mock_configdir/$mock_root.cfg" ] || die "Mock root $mock_root not configured"
+
+# do the real work
+
+rm -rf "$bin_repo_dir" "$log_dir" "$result_dir"
+mkdir -p "$bin_repo_dir" "$log_dir" "$result_dir"
+
+for src_rpm in "$src_repo_dir"/*.src.rpm; do
+    echo "Building $src_rpm"
+    log_filename="$log_dir/$(basename $src_rpm).log"
+
+    mock \
+        --root "$mock_root" \
+        --configdir "$mock_configdir" \
+        --resultdir "$result_dir" \
+        --verbose \
+        --rebuild "$src_rpm" \
+        &> "$log_filename" || die "Mock failed"
+done
+
+test_first -r "$result_dir"/*.rpm || die "No RPMS build."
+
+for bin_rpm in "$result_dir"/*.rpm; do
+    case "$bin_rpm" in
+        # Ignore src rpms mock puts to output dirs
+        *.src.rpm) ;;
+        *) cp "$bin_rpm" "$bin_repo_dir/"
+    esac
+done
+
