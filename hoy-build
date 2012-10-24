@@ -6,6 +6,8 @@ target_feature=$(git rev-parse --abbrev-ref HEAD)
 
 cd_to_hoy_top
 
+force=$1
+
 [ -n "$BRANCH" ] || die "BRANCH must be set in .ayer"
 [ -n "$USER" ] || USER=$(whoami)
 
@@ -25,7 +27,7 @@ upload_type=for
             continue
         fi
     fi
-    git push origin HEAD:refs/$upload_type/$BRANCH/$target_feature
+    git push origin HEAD:refs/$upload_type/$BRANCH/$target_feature || [ "$force" == -f ]
     git update-ref $published_ref HEAD
 done
 
