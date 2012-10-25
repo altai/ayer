@@ -5,8 +5,7 @@ source /usr/lib/ayer/functions.sh
 cd_to_hoy_top
 
 git submodule init
-git fetch -p origin --tags
-git fetch -p origin --recurse-submodules --tags
+git fetch -p origin --recurse-submodules
 
 if [ ! -f .git/hooks/commit-msg ]; then
     # sed produces something like "-P 29418 aababilov@osc-build:hooks/commit-msg"
