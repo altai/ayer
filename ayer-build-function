@@ -6,7 +6,7 @@ if [ "$#" -lt 4 ]; then
     die "usage: $(basename $0) build_commit previous_ref target_path build_release"
 fi
 
-load_config
+ayer_init
 
 build_commit=$1
 previous_ref=$2

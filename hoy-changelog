@@ -6,7 +6,7 @@ source /usr/lib/ayer/functions.sh
 
 target_feature=$(git rev-parse --abbrev-ref HEAD)
 
-cd_to_hoy_top
+hoy_init
 
 if [ -n "$1" ]; then
     base_treeish=$1

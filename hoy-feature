@@ -5,7 +5,7 @@ source /usr/lib/ayer/functions.sh
 target_feature=$1
 target_branch=$2
 
-cd_to_hoy_top
+hoy_init
 
 if [ -n "$target_branch" ]; then
     target_branch=${target_branch%_trunk}_trunk
@@ -25,10 +25,9 @@ fi
 if ! git rev-parse "origin/$target_branch" &>/dev/null; then
     die "trunk \`$target_branch' is not found"
 fi
-if [ -f .ayer ]; then
-    sed -i '/^BRANCH=/d' .ayer
-fi
-echo "BRANCH=$target_branch" >> .ayer
+
+sed -i '/^BRANCH=/d' "$HOY_CONFIG"
+echo "BRANCH=$target_branch" >> "$HOY_CONFIG"
 
 git checkout -t -B "$target_feature" "origin/$target_branch"
 git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"

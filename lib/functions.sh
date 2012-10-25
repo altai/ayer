@@ -1,33 +1,67 @@
 # -*- sh -*-
 
-AYER_CONFIG=${AYER_CONFIG:-~/.config/ayer}
+set -e
+
+HOY_CONFIG=.ayer
+
+AYER_CONFIG=~/.config/ayer/ayer
 GERRIT_PORT=29418
 BASE_WORKDIR=~/.ayer
 GERRIT_SUBMITTABLE="CodeReview+2 Verified+1 NOT Verified-1 NOT CodeReview-2"
 build_os=centos6
 
-set -e
+AYER_CONFIG_VARS="GERRIT_SSH
+  YUM_REPO_DIR
+  BUILD_SERVER_SSH
+  BASE_PROJECT
+  YUM_REPO_BASEURL_DEV
+  YUM_REPO_BASEURL_RELEASE
+"
 
 
-function load_config() {
-    source "$AYER_CONFIG"
-    git_dir="$BASE_WORKDIR/git"
-   # TODO: show errors if some variables are not set
+function check_variables() {
+    local filename=$1
+    shift
+    local result=0
+    for i in $@; do
+        if [ -z "${!i}" ]; then
+            echo "$i is empty or not set" >&2
+            result=1
+        fi
+    done
+    if [ $result != 0 ]; then
+        echo "please set variables in \`$filename'" >&2
+    fi
+    return $result
 }
 
-function cd_to_hoy_top() {
+
+function ayer_init() {
+    if [ -f "$AYER_CONFIG" ]; then
+        source "$AYER_CONFIG"
+    else
+        die "$AYER_CONFIG is missing"
+    fi
+    check_variables "$AYER_CONFIG" $AYER_CONFIG_VARS
+
+    git_dir="$BASE_WORKDIR/git"
+}
+
+
+function hoy_init() {
     while true; do
         if [ "$PWD" == "/" ]; then
-            die "not an ayer repository"
+            die "not an hoy repository"
         fi
-        if [ -f .ayer ]; then
-            source .ayer
+        if [ -f "$HOY_CONFIG" ]; then
+            source "$HOY_CONFIG"
             hoy_top=$PWD
             return
         fi
         cd ..
     done
 }
+
 
 # surprise: this command finishes the current shell
 function die() {

@@ -4,11 +4,11 @@ source /usr/lib/ayer/functions.sh
 
 target_feature=$(git rev-parse --abbrev-ref HEAD)
 
-cd_to_hoy_top
+hoy_init
 
 force=$1
 
-[ -n "$BRANCH" ] || die "BRANCH must be set in .ayer"
+check_variables "$PWD/$HOY_CONFIG" JENKINS_BASEURL YUM_REPO_BASEURL_DEV BRANCH
 [ -n "$USER" ] || USER=$(whoami)
 
 upload_type=for
@@ -31,9 +31,5 @@ upload_type=for
     git update-ref $published_ref HEAD
 done
 
-if [ -n "$JENKINS_BASEURL" ]; then
-    curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${USER}&COMMIT=$(git rev-parse HEAD)&BRANCH=${BRANCH}&TOPIC=${target_feature}"
-    [ -z "$YUM_REPO_BASEURL_DEV" ] || echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$USER/$BRANCH/$target_feature"
-else
-    echo "JENKINS_BASEURL must be set in .ayer"
-fi
+curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${USER}&COMMIT=$(git rev-parse HEAD)&BRANCH=${BRANCH}&TOPIC=${target_feature}"
+echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$USER/$BRANCH/$target_feature"

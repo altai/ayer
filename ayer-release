@@ -4,7 +4,7 @@
 
 source /usr/lib/ayer/functions.sh
 
-load_config
+ayer_init
 
 function create_and_publish_tag() {
     local project_name="$1"

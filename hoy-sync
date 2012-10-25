@@ -2,7 +2,7 @@
 
 source /usr/lib/ayer/functions.sh
 
-cd_to_hoy_top
+hoy_init
 
 git submodule init
 git fetch -p origin --recurse-submodules

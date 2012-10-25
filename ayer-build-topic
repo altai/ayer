@@ -2,7 +2,7 @@
 
 source /usr/lib/ayer/functions.sh
 
-load_config
+ayer_init
 
 PROG=$(basename "$0")
 
