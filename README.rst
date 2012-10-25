@@ -31,16 +31,18 @@ Hoy - Developer Tools
 hoy-sync
 --------
 
-hoy-sync initializes submodules, fetches all branches from Gerrit
-repositories, and sets commit hook if needed.
+hoy-sync initializes submodules and fetches all branches from Gerrit
+repositories.
 
 
 hoy-feature feature [branch]
 -----------
 
 hoy-feature prepares environment for working at requested `feature` for
-requested trunk `branch`. This command checks out all git repos to
-`feature` branch. If `feature` does not exist, it is created.
+requested trunk `branch` and sets commit hook if needed.
+This command checks out all git repos to `feature` branch. If
+`feature` does not exist, it is created.
+
 
 hoy-build [-f]
 --------------

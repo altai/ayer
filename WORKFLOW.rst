@@ -4,21 +4,28 @@ Hoy Workflow
 Initialize a repository
 -----------------------
 
-Clone the repo and sync it.
+Clone the repo and setup it.
 
 ::
 
-    $ git clone http://osc-build.vm.griddynamics.net:9090/altai
+    $ G_USERNAME=<you Gerrit username>
+    $ git clone ssh://$G_USERNAME@osc-build.vm.griddynamics.net:29418/altai.git
     $ cd altai
-    $ hoy-sync
-
+    $ cat > .ayer <<EOF
+    YUM_REPO_BASEURL_DEV=http://osc-build.vm.griddynamics.net/altai
+    JENKINS_BASEURL=http://osc-build.vm.griddynamics.net:8080
+    USER=$G_USERNAME
+    BRANCH=v1.0.2_trunk
+    EOF
 
 Start a feature
 ---------------
 
+Trunk argument is optional.
+
 ::
 
-    $ hoy-feature my-feature v1.2.3_trunk
+    $ hoy-feature my-feature v1.0.2_trunk
 
 Building the feature
 --------------------

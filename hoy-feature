@@ -19,15 +19,26 @@ if git rev-parse "$target_feature" &>/dev/null; then
     # the feature already exists - just checkout
     git checkout "$target_feature"
     git submodule foreach git checkout "$target_feature"
-    exit 0
+else
+    if ! git rev-parse "origin/$target_branch" &>/dev/null; then
+        die "trunk \`$target_branch' is not found"
+    fi
+
+    sed -i '/^BRANCH=/d' "$HOY_CONFIG"
+    echo "BRANCH=$target_branch" >> "$HOY_CONFIG"
+
+    git checkout -t -B "$target_feature" "origin/$target_branch"
+    git submodule init
+    git submodule update
+    git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
 fi
 
-if ! git rev-parse "origin/$target_branch" &>/dev/null; then
-    die "trunk \`$target_branch' is not found"
+# setup commit-msg hooks
+if [ ! -f .git/hooks/commit-msg ]; then
+    # sed produces something like "-P 29418 aababilov@osc-build:hooks/commit-msg"
+    scp -p $(git remote show -n origin |grep Fetch | sed -r 's#^.+: +(ssh://)?([^:]+):([0-9]+)/.*$#-P \3 \2:hooks/commit-msg#') .git/hooks
 fi
-
-sed -i '/^BRANCH=/d' "$HOY_CONFIG"
-echo "BRANCH=$target_branch" >> "$HOY_CONFIG"
-
-git checkout -t -B "$target_feature" "origin/$target_branch"
-git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
+commit_hook=$(readlink -f .git/hooks/commit-msg)
+find .git/modules -name hooks -type d | while read hooks_dir; do
+    ln -sf "$commit_hook" "$hooks_dir"
+done
