@@ -51,7 +51,7 @@ check_git_project "${BASE_PROJECT}" "$build_commit"
 git ls-tree -r "$build_commit" | {
     while read mode type hash path; do
         if [ "$mode" == 160000 ]; then
-            check_git_project "$(basename "$path")" "$hash"
+            check_git_project "$(basename "$path")" "$hash" </dev/null
         fi
     done
 

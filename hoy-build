@@ -2,21 +2,21 @@
 
 source /usr/lib/ayer/functions.sh
 
-target_feature=$(git rev-parse --abbrev-ref HEAD)
-
 hoy_init
+
+target_feature=$(git rev-parse --abbrev-ref HEAD)
 
 force=$1
 
-check_variables "$PWD/$HOY_CONFIG" JENKINS_BASEURL YUM_REPO_BASEURL_DEV BRANCH
-[ -n "$USER" ] || USER=$(whoami)
+target_branch=$(get_trunk "$target_feature")
+username=$(get_username)
 
 upload_type=for
 
 { git submodule -q foreach 'echo $name'; echo .; } | while read repo_path; do
     cd $hoy_top/$repo_path
     local_commit=$(git rev-parse HEAD)
-    remote_commit=$(git rev-parse remotes/origin/$BRANCH || true)
+    remote_commit=$(git rev-parse remotes/origin/$target_branch || true)
     if [ "$local_commit" == "$remote_commit" ]; then
         continue
     fi
@@ -27,9 +27,9 @@ upload_type=for
             continue
         fi
     fi
-    git push origin HEAD:refs/$upload_type/$BRANCH/$target_feature || [ "$force" == -f ]
+    git push origin HEAD:refs/$upload_type/$target_branch/$target_feature || [ "$force" == -f ]
     git update-ref $published_ref HEAD
 done
 
-curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${USER}&COMMIT=$(git rev-parse HEAD)&BRANCH=${BRANCH}&TOPIC=${target_feature}"
-echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$USER/$BRANCH/$target_feature"
+curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${username}&COMMIT=$(git rev-parse HEAD)&BRANCH=${target_branch}&TOPIC=${target_feature}"
+echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$username/$target_branch/$target_feature"

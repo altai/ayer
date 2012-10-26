@@ -1,0 +1,9 @@
+#!/bin/bash
+
+source /usr/lib/ayer/functions.sh
+
+hoy_init
+
+echo "# Gerrit user $(get_username)"
+echo "# Target trunk $(get_trunk)"
+git status

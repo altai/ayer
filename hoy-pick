@@ -1,0 +1,33 @@
+#!/bin/bash
+
+source /usr/lib/ayer/functions.sh
+
+hoy_init
+
+base_object="$1"
+[ -n "$base_object" ] || die "usage: $(basename $0) base_commit"
+
+git_fetch_commit "$base_object"
+
+git diff-tree -r "$base_object" | {
+    failed_pick=
+    while read mode1 mode2 hash1 hash2 ignored path; do
+        if [ "$mode2" == 160000 ]; then
+            echo "cherry-pick for $path"
+            cd $hoy_top/$path
+            git_fetch_commit "$hash2"
+            git cherry-pick --ff ..$hash2 || failed_pick="$failed_pick $path"
+        fi
+    done
+    cd $hoy_top
+    echo "cherry-pick for $(basename $hoy_top)"
+    git cherry-pick -n "$base_object"
+    if [ -n "$failed_pick" ]; then
+        echo "error: automatic cherry-pick failed for several projects:" >&2
+        for path in $failed_pick; do
+            printf "\t%s\n" "$path" >&2
+        done
+        echo "error: please finish cherry-pick manually" >&2
+        exit 1
+    fi
+}

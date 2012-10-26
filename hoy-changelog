@@ -4,15 +4,14 @@
 
 source /usr/lib/ayer/functions.sh
 
-target_feature=$(git rev-parse --abbrev-ref HEAD)
-
 hoy_init
+
+target_feature=$(git rev-parse --abbrev-ref HEAD)
 
 if [ -n "$1" ]; then
     base_treeish=$1
 else
-    [ -n "$BRANCH" ] || die "BRANCH must be set in .ayer"
-    base_treeish=remotes/origin/$BRANCH
+    base_treeish=remotes/origin/$(get_trunk "$target_feature")
 fi
 
 { echo .; git submodule -q foreach 'echo $name'; } | while read repo_path; do

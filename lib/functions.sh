@@ -55,6 +55,7 @@ function hoy_init() {
         fi
         if [ -f "$HOY_CONFIG" ]; then
             source "$HOY_CONFIG"
+            check_variables "$PWD/$HOY_CONFIG" JENKINS_BASEURL YUM_REPO_BASEURL_DEV
             hoy_top=$PWD
             return
         fi
@@ -112,6 +113,13 @@ function git_fetch_repos() {
     done
 }
 
+function git_fetch_commit() {
+    local commit_hash="$1"
+    commit_ref=$(git ls-remote origin '[0-9]*' | grep "^$commit_hash" |
+        while read key value; do echo $value; done) || die "cannot find object $commit_hash"
+    git fetch origin "$commit_ref" &>/dev/null
+}
+
 function gerrit_repo_ssh()
 {
     local git_project=$1
@@ -124,6 +132,15 @@ function gerrit_repo_ssh()
 
 function gerrit_command() {
     ssh "$GERRIT_SSH" -p "$GERRIT_PORT" gerrit "$@"
+}
+
+function gerrit_configure_from_origin() {
+    if [[ $(git config --get remote.origin.url) =~ ^(ssh://)?([^:]+):([0-9]+)/.*$ ]]; then
+        GERRIT_SSH="${BASH_REMATCH[2]}"
+        GERRIT_PORT="${BASH_REMATCH[3]}"
+    else
+        die "please configure remote.origin.url as ssh://<username>@<gerrit-host>:<port>/<base-project>.git"
+    fi
 }
 
 # arguments: repo_dir remote_repo_name remote_repo_full_path
@@ -180,4 +197,20 @@ function replace_repos() {
     replace_dir "$build_dir/deps" "$base_target_dir/deps"
     replace_dir "$build_dir/RPMS" "$base_target_dir/$build_os"
     #rm -rf "$build_dir"
+}
+
+function get_trunk() {
+    local topic=${1:-$(git rev-parse --abbrev-ref HEAD)}
+    basename $(git config --get "branch.${topic}.merge") || {
+        echo "cannot determine trunk name" >&2
+        return 1
+    }
+}
+
+function get_username() {
+    if [[ $(git config --get remote.origin.url) =~ ^(ssh://)?([A-Za-z][-A-Za-z0-9_]*)@.*$ ]]; then
+        echo "${BASH_REMATCH[2]}"
+    else
+        whoami
+    fi
 }
