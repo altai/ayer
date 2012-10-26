@@ -1,0 +1,28 @@
+#!/bin/bash -e
+
+source /usr/lib/ayer/functions.sh
+
+ayer_init
+
+# Usage: "$0" <project> <refspec> [<test_mode>]
+
+project=${1:?Project undefined.}
+refspec=${2:?Refspec undefined.}
+test_mode=${3:-fast}
+repo_ssh=$(gerrit_repo_ssh "$project")
+
+# Basic sanity checks
+echo "$project" | fgrep -q '/' && die "Invalid project name"
+
+# should create temporary path out there? for jenkins we don't need it
+git_fetch_refspec "$project" "$repo_ssh" "$refspec"
+cd "./$project"
+git checkout FETCH_HEAD
+
+if [ '!' -x ./run_tests ] ; then
+    echo "WARNING: No tests run" >&2
+    exit 0
+fi
+
+./run_tests "$test_mode" || die "Tests failed"
+
