@@ -18,19 +18,19 @@ die () {
     exit 1
 }
 
-# Apply test to first file in glob
+# Apply test to first file in glob.
 # Example usage: test_first -r *.rpm
 test_first () {
     test "$1" "$2"
 }
 
-# environment sanity check -- very basic
+# Environment sanity check -- very basic:
 
 test_first -r "$src_repo_dir"/*.src.rpm || die "Nothing to build."
 [ -d "$mock_configdir" ] || die "Private mock configuration not found."
 [ -r "$mock_configdir/$mock_root.cfg" ] || die "Mock root $mock_root not configured"
 
-# do the real work
+# Do the real work:
 
 rm -rf "$bin_repo_dir" "$log_dir" "$result_dir"
 mkdir -p "$bin_repo_dir" "$log_dir" "$result_dir"
