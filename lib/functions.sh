@@ -55,6 +55,7 @@ function hoy_init() {
         fi
         if [ -f "$HOY_CONFIG" ]; then
             source "$HOY_CONFIG"
+            check_variables "$PWD/$HOY_CONFIG" JENKINS_BASEURL YUM_REPO_BASEURL_DEV
             hoy_top=$PWD
             return
         fi
@@ -180,4 +181,20 @@ function replace_repos() {
     replace_dir "$build_dir/deps" "$base_target_dir/deps"
     replace_dir "$build_dir/RPMS" "$base_target_dir/$build_os"
     #rm -rf "$build_dir"
+}
+
+function get_trunk() {
+    local topic=${1:-$(git rev-parse --abbrev-ref HEAD)}
+    basename $(git config --get "branch.${topic}.merge") || {
+        echo "cannot determine trunk name" >&2
+        return 1
+    }
+}
+
+function get_username() {
+    if [[ $(git config --get remote.origin.url) =~ ^(ssh://)?([A-Za-z][-A-Za-z0-9_]*)@.*$ ]]; then
+        echo "${BASH_REMATCH[2]}"
+    else
+        whoami
+    fi
 }

@@ -7,25 +7,23 @@ target_branch=$2
 
 hoy_init
 
-if [ -n "$target_branch" ]; then
-    target_branch=${target_branch%_trunk}_trunk
-else
-    target_branch=$BRANCH
-fi
-
-[ -n "$target_feature" -a -n "$target_branch" ] || die "usage: $(basename $0) feature [branch]"
+[ -n "$target_feature" ] || die "usage: $(basename $0) feature [branch]"
 
 if git rev-parse "$target_feature" &>/dev/null; then
     # the feature already exists - just checkout
+    target_branch=$(get_trunk "$target_feature")
     git checkout "$target_feature"
     git submodule foreach git checkout "$target_feature"
 else
+    if [ -n "$target_branch" ]; then
+        target_branch=${target_branch%_trunk}_trunk
+    else
+        target_branch=$(get_trunk)
+    fi
+
     if ! git rev-parse "origin/$target_branch" &>/dev/null; then
         die "trunk \`$target_branch' is not found"
     fi
-
-    sed -i '/^BRANCH=/d' "$HOY_CONFIG"
-    echo "BRANCH=$target_branch" >> "$HOY_CONFIG"
 
     git checkout -t -B "$target_feature" "origin/$target_branch"
     git submodule init
@@ -33,10 +31,15 @@ else
     git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
 fi
 
+echo "started feature $target_feature for branch $target_branch"
+
 # setup commit-msg hooks
 if [ ! -f .git/hooks/commit-msg ]; then
-    # sed produces something like "-P 29418 aababilov@osc-build:hooks/commit-msg"
-    scp -p $(git remote show -n origin |grep Fetch | sed -r 's#^.+: +(ssh://)?([^:]+):([0-9]+)/.*$#-P \3 \2:hooks/commit-msg#') .git/hooks
+    if [[ $(git config --get remote.origin.url) =~ ^(ssh://)?([^:]+):([0-9]+)/.*$ ]]; then
+        scp -p -P "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}:hooks/commit-msg" .git/hooks >/dev/null
+    else
+        die "please configure remote.origin.url as ssh://<username>@<gerrit-host>:<port>/<base-project>.git"
+    fi
 fi
 commit_hook=$(readlink -f .git/hooks/commit-msg)
 find .git/modules -name hooks -type d | while read hooks_dir; do
