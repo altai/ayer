@@ -1,0 +1,107 @@
+#!/bin/bash -e
+
+source /usr/lib/ayer/functions.sh
+
+ayer_init
+
+# Usage: "$0" <project> <refspec> [<branch>] [<target>]
+
+project=${1:?Project undefined.}
+refspec=${2:?Refspec undefined.}
+branch=${3:-$refspec}
+target=${4:-test}
+repo_ssh=$(gerrit_repo_ssh "$project")
+script="./.build"
+
+CONFIG_DIR="$HOME/.config/ayer"
+
+#
+# Basic sanity checks
+#
+
+echo "$project" | fgrep -q '/' && die "Invalid project name"
+
+#
+# Create mock configuration
+#
+
+work_dir=$(mktemp -d -t ayer.XXXXXX)
+cd "$work_dir"
+mkdir mock_configdir
+for file in site-defaults.cfg logging.ini; do
+    cp -p -t mock_configdir/ "$CONFIG_DIR/mock/$file"
+done
+
+ayer-mock-config "$CONFIG_DIR/mock.cfg.template" "./mock_configdir/ayer.cfg" \
+    "branch=$branch" \
+    "repo_url=$YUM_REPO_BASEURL_DEV/dev/$branch"
+
+# yum compares modification time of configuration files with creation time
+# of it's root cache, so we have to reset mtime of generated config
+touch -r "$CONFIG_DIR/mock.cfg.template" "./mock_configdir/ayer.cfg"
+
+
+# Runs mock with our params
+a_mock () {
+    /usr/bin/mock \
+        --root ayer \
+        --configdir mock_configdir \
+        --verbose \
+        "$@"
+}
+
+# Prints out the list of packgaes needed in test environment
+# Usage: packages_needed_to_test [specfile]
+packages_needed_to_test () {
+    local specfile="$1"
+    {
+        # packages we'll need in almost every test environment:
+        echo python-nova
+        echo python-mox
+
+        # we'll also need most of packages rpm would depend on
+        [ -r "$specfile" ] && rpm --query --requires --specfile "$specfile"
+    } | awk '{ print $1; }' \
+      | sort -u \
+      | grep -v -e '^/bin/sh$' -e '^start-stop-daemon$'
+}
+
+# XXX: should create temporary path out there? for jenkins we don't need it
+
+# Get source
+mkdir -p "$git_dir"
+cd "$git_dir"
+git_fetch_refspec "${project}.git" "$repo_ssh" "$refspec:$refspec"
+cd "${project}.git"
+tarball_dir="$work_dir/tarball"
+mkdir -p "$tarball_dir"
+git archive --format=tar "$refspec" | tar -xf - -C "$tarball_dir" 2>/dev/null
+cd "$tarball_dir"
+if [ ! -x "$script" ]; then
+    echo '#!/bin/bash
+python setup.py test' > "$script"
+    chmod +x "$script"
+fi
+cd "$work_dir"
+
+# Make new chroot and install packages to it
+a_mock --clean
+a_mock --init
+
+packages_needed_to_test "$tarball_dir/"*.spec | while read; do
+    a_mock --install "$REPLY"
+done
+
+# Copy sources into chroot
+internal_path="/builddir/$project"
+a_mock --copyin "$tarball_dir" "$internal_path"
+rm -rf "$tarball_dir"
+
+# To run .build as unprivilaged user (which is cleaner) we need
+# to set apropriate permissions
+a_mock --chroot --cwd "$internal_path" "chown -R mockbuild:mockbuild ."
+
+# At last, run what we wanted
+a_mock --chroot --unpriv --cwd "$internal_path" "$script" "$target"
+
+rm -rf "$work_dir"
