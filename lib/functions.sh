@@ -143,6 +143,27 @@ function gerrit_configure_from_origin() {
     fi
 }
 
+# sets CHANGE_PROJECT, CHANGE_BRANCH, and CHANGE_TOPIC
+# environment variables
+function gerrit_query_change() {
+    local tmpfile=$(mktemp)
+    gerrit_command query "$1" </dev/null >"$tmpfile"
+    while read key value; do
+        case "$key" in
+            project:)
+                CHANGE_PROJECT=$value
+                ;;
+            branch:)
+                CHANGE_BRANCH=$value
+                ;;
+            topic:)
+                CHANGE_TOPIC=$value
+                ;;
+        esac
+    done <"$tmpfile"
+    rm -f "$tmpfile"
+}
+
 # arguments: repo_dir remote_repo_name remote_repo_full_path
 function git_update_remote() {
     (

@@ -5,9 +5,12 @@ source /usr/lib/ayer/functions.sh
 ayer_init
 
 build_commit=$1
-build_branch=$2
 
-[ -n "$build_commit" -a -n "$build_branch" ] || die "usage: $(basename $0) build_commit build_branch"
+[ -n "$build_commit" ] || die "usage: $(basename $0) build_commit"
+
+gerrit_query_change "$build_commit"
+build_branch=$CHANGE_BRANCH
+
 
 echo "checking whether build commit can be accepted to trunk"
 commits_to_submit=$(ayer-is-acceptable "$build_commit" "$build_branch") || die "build commit cannot be accepted to trunk"

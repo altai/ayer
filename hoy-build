@@ -31,5 +31,5 @@ upload_type=for
     git update-ref $published_ref HEAD
 done
 
-curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${username}&COMMIT=$(git rev-parse HEAD)&BRANCH=${target_branch}&TOPIC=${target_feature}"
+curl "${JENKINS_BASEURL%/}/job/ayer-build-topic/buildWithParameters" -d "USER=${username}&COMMIT=$(git rev-parse HEAD)"
 echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$username/$target_branch/$target_feature"

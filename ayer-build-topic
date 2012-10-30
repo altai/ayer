@@ -4,36 +4,16 @@ source /usr/lib/ayer/functions.sh
 
 ayer_init
 
-PROG=$(basename "$0")
+build_commit=$1
+build_user=$2
+[ -n "$build_commit" -a  -n "$build_user" ] || die "usage: $(basename $0) build_commit user"
 
-TEMP=`getopt -n $PROG  -o c:,u:,t:,b: -l commit:,user:,branch:,topic: -- "$@"` || exit 1
-eval set -- "$TEMP"
+gerrit_query_change "$build_commit"
+build_branch=$CHANGE_BRANCH
+build_topic=$CHANGE_TOPIC
 
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        -c|--commit)
-            build_commit=$2
-            shift
-            ;;
-        -u|--user)
-            build_user=$2
-            shift
-            ;;
-        -b|--branch)
-            build_branch=$2
-            shift
-            ;;
-        -t|--topic)
-            build_topic=$2
-            shift
-            ;;
-    esac
-    shift
-done
-[ -n "$build_commit" ] || die "build commit is unknown"
-[ -n "$build_user" ] || die "build user is unknown"
-[ -n "$build_branch" ] || die "build branch is unknown"
-[ -n "$build_topic" ] || die "build topic is unknown"
+echo "branch: $build_branch"
+echo "topic: $build_topic"
 
 target_path="dev/$build_user/$build_branch/$build_topic"
 previous_ref="$build_branch"

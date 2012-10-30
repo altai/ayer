@@ -5,9 +5,11 @@ source /usr/lib/ayer/functions.sh
 ayer_init
 
 build_commit=$1
-build_branch=$2
 
-[ -n "$build_commit" -a -n "$build_branch" ] || die "usage: $(basename $0) build_commit build_branch"
+[ -n "$build_commit" ] || die "usage: $(basename $0) build_commit"
+
+gerrit_query_change "$build_commit"
+build_branch=$CHANGE_BRANCH
 
 upstream=origin/$build_branch
 is_acceptable=y
