@@ -1,0 +1,60 @@
+#!/usr/bin/python
+
+from yum.parser import varReplace
+
+_DICT_NAME='config_opts'
+
+def parseArgs(args):
+    """Covert arguments to dictionary.
+
+    @param args: An iterable over strings, each in form 'key=value'.
+    @param return: A dictionary filled with keys and  values from args.
+    """
+    return dict((arg.split('=', 1) for arg in args))
+
+def readConfig(filename):
+    """Read mock configuration from file
+
+    @param filename Name of configuration file.
+    @returns Dictionary with read configuration.
+    """
+    globs = {_DICT_NAME: {} }
+    execfile(filename, globs, {})
+    return globs.get(_DICT_NAME, {})
+
+def writeConfig(filename, contents):
+    """Write mock configuration to file.
+
+    @param filename Destination file name.
+    @param contents Dictionary with configuration values to write.
+    """
+    with open(filename, 'w') as dest:
+        for k, v in contents.iteritems():
+            dest.write("%s[%r] = %r\n" % (_DICT_NAME, k, v))
+
+
+def recursiveVarReplace(config, subst_vars):
+    """varReplace for each element of dictionary, recursively"""
+    if subst_vars == {} or subst_vars is None:
+        return
+    for k, v in config.iteritems():
+        if isinstance(v, basestring):
+            config[k] = varReplace(v, subst_vars)
+        elif isinstance(v, dict):
+            recursiveVarReplace(v, subst_vars)
+
+def _main(argv):
+    if len(argv) < 3:
+        print "Usage: %s <sorce> <dest> [key=value...]" % argv[0]
+        return 1
+    config_opts = readConfig(argv[1])
+    dest = argv[2]
+    subst_vars = parseArgs(argv[3:])
+    recursiveVarReplace(config_opts, subst_vars)
+    writeConfig(dest, config_opts)
+    return 0
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(_main(sys.argv))
+

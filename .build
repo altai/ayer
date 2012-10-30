@@ -1,0 +1,7 @@
+#!/usr/bin/make -f
+
+.PHONY: test
+
+test:
+	python tests/test_ayer_mock_config.py
+
