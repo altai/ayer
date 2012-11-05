@@ -55,7 +55,6 @@ function hoy_init() {
         fi
         if [ -f "$HOY_CONFIG" ]; then
             source "$HOY_CONFIG"
-            check_variables "$PWD/$HOY_CONFIG" JENKINS_BASEURL YUM_REPO_BASEURL_DEV
             hoy_top=$PWD
             return
         fi

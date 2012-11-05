@@ -6,7 +6,7 @@ hoy_init
 
 target_feature=$(git rev-parse --abbrev-ref HEAD)
 
-force=$1
+[ "$1" == -p ] && pretend=y || pretend=n
 
 target_branch=$(get_trunk "$target_feature")
 username=$(get_username)
@@ -27,8 +27,12 @@ upload_type=for
             continue
         fi
     fi
-    git push origin HEAD:refs/$upload_type/$target_branch/$target_feature || [ "$force" == -f ]
-    git update-ref $published_ref HEAD
+    if [ "$pretend" == "y" ]; then
+        echo "changes for $repo_path"
+        git cherry -v remotes/origin/$target_branch HEAD
+    else
+        git push origin HEAD:refs/$upload_type/$target_branch/$target_feature || true
+        git update-ref $published_ref HEAD
+    fi
 done
 
-echo "results: ${YUM_REPO_BASEURL_DEV%/}/dev/$username/$target_branch/$target_feature"
