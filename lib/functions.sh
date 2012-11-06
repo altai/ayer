@@ -6,6 +6,7 @@ HOY_CONFIG=.ayer
 
 AYER_CONFIG=~/.config/ayer/ayer
 GERRIT_PORT=29418
+AYER_RPM_SIGN=ayer-rpm-sign
 BASE_WORKDIR=~/.ayer
 GERRIT_SUBMITTABLE="CodeReview+2 Verified+1 NOT Verified-1 NOT CodeReview-2"
 build_os=centos6

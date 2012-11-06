@@ -99,10 +99,10 @@ function build_bin_rpms() {
     else
         "$build_script" $build_script_args "$build_dir"
     fi
-    echo "signing rpms"
-    for i in "$build_dir/RPMS"/*rpm; do
-        ayer-rpm-sign $i
-    done > "$build_dir/LOGS/sign.log"
+    if [ -n $AYER_RPM_SIGN ]; then
+        echo "signing rpms"
+        "$AYER_RPM_SIGN" "$build_dir/RPMS"/*rpm > "$build_dir/LOGS/sign.log"
+    fi
 }
 
 function append_rpms() {
@@ -137,6 +137,8 @@ if [[ "$target_path" == dev/* ]]; then
 else
     project_baseurl="$YUM_REPO_BASEURL_RELEASE/$target_path"
 fi
+
+echo "build is available at $YUM_REPO_BASEURL_DEV/$target_path"
 
 base_target_dir="$YUM_REPO_DIR/$target_path"
 build_dir="$base_target_dir/build"
