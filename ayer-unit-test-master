@@ -1,0 +1,25 @@
+#!/bin/bash
+
+source /usr/lib/ayer/functions.sh
+
+ayer_init
+
+project=$1
+refspec=$2
+
+[ -n "$project" -a -n "$refspec" ] || die "usage: $(basename $0) project refspec"
+
+git_fetch_refspec "$git_dir/$project.git" "$(gerrit_repo_ssh "$project")" "$refspec:$refspec"
+
+echo -n "testing at $BUILD_SERVER_SSH"
+remote_dir=$(ssh "$BUILD_SERVER_SSH" "mktemp -d /tmp/ayer.XXXXXX")
+echo ":$remote_dir"
+cd "$git_dir/${project}.git"
+git archive --format=tar "$refspec" | gzip -c - | ssh "$BUILD_SERVER_SSH" "cat - > $remote_dir/git.tar.gz"
+scp $(which ayer-unit-test-slave) "$BUILD_SERVER_SSH:$remote_dir/"
+
+set +e
+ssh "$BUILD_SERVER_SSH" "cd $remote_dir && ./ayer-unit-test-slave"
+retcode=$?
+ssh "$BUILD_SERVER_SSH" "rm -rf $remote_dir"
+exit $retcode

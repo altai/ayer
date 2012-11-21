@@ -1,0 +1,56 @@
+#!/bin/bash -e
+
+CONFIG_DIR="$HOME/.config/ayer"
+mock_configdir="$CONFIG_DIR/mock"
+
+# Usage: "$0" <mock_root> <root_dir>
+
+mock_root=${1:-ayer-test}
+root_dir=$(readlink -f ${2:-$PWD})
+
+tests_dir=$root_dir/tests
+log_dir=$root_dir/LOGS
+
+die () {
+    echo "$@" >&2
+    exit 1
+}
+
+# Apply test to first file in glob
+# Example usage: test_first -r *.rpm
+test_first () {
+    test "$1" "$2"
+}
+
+# environment sanity check -- very basic
+
+test_first -r "$root_dir"/*.tar* || die "Nothing to test."
+#[ -d "$mock_configdir" ] || die "Private mock configuration not found."
+#[ -r "$mock_configdir/$mock_root.cfg" ] || die "Mock root $mock_root not configured"
+
+# do the real work
+
+#rm -rf "$log_dir"
+#mkdir -p "$log_dir"
+
+#mock \
+#   --root "$mock_root" \
+#   --configdir "$mock_configdir" \
+#   --resultdir "$result_dir" \
+#   --verbose \
+#   --rebuild "$src_rpm" \
+
+for tarball in "$root_dir"/*.tar*; do
+    echo "Testing $tarball"
+    log_filename="$log_dir/$(basename $tarball).log"
+    rm -rf "$tests_dir"
+    mkdir -p "$tests_dir"
+    tar -xf "$tarball" -C "$tests_dir"
+    cd "$tests_dir"
+    [ -r setup.py ] || { echo "No python tests"; exit 0; }
+    virtualenv ./env
+    source ./env/bin/activate
+    python setup.py install
+    python setup.py test
+    break
+done
