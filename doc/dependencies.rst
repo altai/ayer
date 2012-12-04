@@ -6,4 +6,7 @@ Ayer (server side)
 ==================
 expect
 rpm-build
+createrepo
+
+
 mock
