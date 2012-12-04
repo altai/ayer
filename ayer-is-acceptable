@@ -50,10 +50,10 @@ function check_git_project() {
 git_fetch_repos "$build_commit" >/dev/null
 check_git_project "${BASE_PROJECT}" "$build_commit"
 
-git ls-tree -r "$build_commit" | {
-    while read mode type hash path; do
-        if [ "$mode" == 160000 ]; then
-            check_git_project "$(basename "$path")" "$hash" </dev/null
+git diff-tree -r "$build_commit" | {
+    while read mode1 mode2 hash1 hash2 ignored path; do
+        if [ "$mode2" == 160000 ]; then
+            check_git_project "$(basename "$path")" "$hash2" </dev/null
         fi
     done
 
