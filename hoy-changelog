@@ -17,7 +17,7 @@ fi
 { echo .; git submodule -q foreach 'echo $name'; } | while read repo_path; do
     cd $hoy_top/$repo_path
     local_commit=$(git rev-parse HEAD)
-    remote_commit=$(git rev-parse $base_treeish) || continue
+    remote_commit=$(git rev-parse $base_treeish 2>/dev/null) || continue
     if [ "$local_commit" == "$remote_commit" ]; then
         continue
     fi
@@ -31,5 +31,7 @@ fi
        done
     fi
     echo "$(basename $PWD)$version:"
-    git --no-pager log --format='    - %s' $remote_commit..HEAD || true
+    git --no-pager  log --format='    - %s%n%b' $remote_commit..HEAD |
+        grep -E '^(    -|Issue:)' | perl  -pe 'BEGIN{undef $/;} s/\n(Issue:[^\n]+)/ ($1)/smg' ||
+        true
 done
