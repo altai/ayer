@@ -15,9 +15,7 @@ if git rev-parse "$target_feature" &>/dev/null; then
     git checkout "$target_feature"
     git submodule foreach git checkout "$target_feature"
 else
-    if [ -n "$target_branch" ]; then
-        target_branch=${target_branch%_trunk}_trunk
-    else
+    if [ -z "$target_branch" ]; then
         target_branch=$(get_trunk)
     fi
 
