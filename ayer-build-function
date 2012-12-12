@@ -109,13 +109,10 @@ function append_rpms() {
             cp -al "$previous_dir/deps" "$build_dir/deps"
         fi
         for i in "$previous_dir/$build_os"/*; do
-            if [ ! -f "$i" ]; then
-                break
-            fi
-            if [ -f "$rpm_dir/$(basename "$i")" ]; then
+            if [ ! -f "$i" -o -f "$rpm_dir/$(basename "$i")" ]; then
                 continue
             fi
-            local commit=$(rpm -q -p "$i" --changelog | head -2 | grep -E -o '[0-9a-z]{40}' || true)
+            local commit=$(rpm -q -p "$i" --changelog 2>/dev/null | head -2 | grep -E -o '[0-9a-z]{40}' || true)
             if [ -n "$commit" ] && grep -q "$commit" "$git_list"; then
                 cp -al "$i" "$rpm_dir"
             fi
