@@ -57,10 +57,10 @@ $changelog_commit_msg/" "$spec_file"
     rpm_name=$(rpm_get_tag "$spec_file" name)
     rpm_version=$(rpm_get_tag "$spec_file" version)
     tar_base="${rpm_name}-${rpm_version}"
-    
+
     main_tarball="$src_dir/$tar_base.tar.gz"
 
     git archive --format=tar --prefix="$tar_base"/ "$build_treeish" | gzip -c - > "$main_tarball"
 
-    rpmbuild $build_rpmargs "$spec_file" --define "_sourcedir $src_dir"
+    rpmbuild $build_rpmargs "$spec_file" --define "_topdir $build_builddir"
 done

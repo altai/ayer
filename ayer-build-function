@@ -45,11 +45,8 @@ function execute_build_plan() {
     local git_list=$2
     local project_baseurl=$3
 
-    local logs_dir="$build_dir/SLOGS"
-    local srpms_dir="$build_dir/SRPMS"
     cd "$build_dir"
-    mkdir -p "$logs_dir" "$srpms_dir"
-    mkdir -p SOURCES
+    mkdir -p SOURCES SRPMS
     echo "$project_baseurl" > SOURCES/baseurl
 
     while read refspec repo_name; do
@@ -70,11 +67,7 @@ function execute_build_plan() {
                 fi
             done
         else
-            log_filename="$logs_dir/$repo_name.log"
-            ayer-rpm -bs --builddir $build_dir --release "$build_release" --treeish $refspec &> "$log_filename"
-            grep '^Wrote:.*.rpm' "$log_filename" | while read ignored rpm_name; do
-                mv "$rpm_name" "$srpms_dir/"
-            done
+            ayer-rpm -bs --builddir $build_dir --release "$build_release" --treeish $refspec
         fi
     done < "$git_list"
 }
