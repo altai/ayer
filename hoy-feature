@@ -2,18 +2,54 @@
 
 source /usr/lib/ayer/functions.sh
 
+usage="usage: $(basename $0) [-f|--force] [-d|-D|--delete] feature [branch]"
+
+opt_force=n
+opt_delete=n
+case "$1" in
+    -f|--force)
+        opt_force=y
+        shift
+        ;;
+    -D|-d|--delete)
+        opt_delete=y
+        shift
+        ;;
+    -h|--help)
+        echo "$usage"
+        exit 0
+        ;;
+esac
+
 target_feature=$1
 target_branch=$2
 
 hoy_init
 
-[ -n "$target_feature" ] || die "usage: $(basename $0) feature [branch]"
+[ -n "$target_feature" ] || die "$usage"
 
-if git rev-parse "$target_feature" &>/dev/null; then
+if [ "$opt_delete" == y ]; then
+    if [ "$(git rev-parse --abbrev-ref HEAD)" == "$target_feature" ]; then
+        die "cannot delete current feature"
+    fi
+    git branch -D "$target_feature" || :
+    git submodule foreach "git branch -D '$target_feature' || :"
+    exit
+fi
+
+if [ "$opt_force" == n ] && git rev-parse "$target_feature" &>/dev/null; then
     # the feature already exists - just checkout
-    target_branch=$(get_trunk "$target_feature")
     git checkout "$target_feature"
     git submodule foreach git checkout "$target_feature"
+    old_target_branch=$(get_trunk)
+    if [ -z "$target_branch" ]; then
+        target_branch=$old_target_branch
+    elif [ "$target_branch" != "$old_target_branch" ]; then
+        # switch feature to another trunk
+        git config "branch.${target_feature}.merge" "$target_branch"
+        git submodule foreach git config "branch.${target_feature}.merge" "$target_branch"
+    fi
+    echo "switched to feature $target_feature for branch $target_branch"
 else
     if [ -z "$target_branch" ]; then
         target_branch=$(get_trunk)
@@ -24,12 +60,10 @@ else
     fi
 
     git checkout -t -B "$target_feature" "origin/$target_branch"
-    git submodule init
-    git submodule update
+    git submodule update --init
     git submodule foreach git checkout -t -B "$target_feature" "origin/$target_branch"
+    echo "started feature $target_feature for branch $target_branch"
 fi
-
-echo "started feature $target_feature for branch $target_branch"
 
 # setup commit-msg hooks
 if [ ! -f .git/hooks/commit-msg ]; then

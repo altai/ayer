@@ -4,5 +4,30 @@ source /usr/lib/ayer/functions.sh
 
 hoy_init
 
+usage="usage: $(basename $0) [-r|--rebase]"
+opt_rebase=n
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -r|--rebase)
+            opt_rebase=y
+            shift
+            ;;
+        -h|--help)
+            echo "$usage"
+            exit 0
+            ;;
+        *)
+            die "$usage"
+            ;;
+    esac
+done
+
 git submodule init
 git fetch -p origin --recurse-submodules
+
+if [ "$opt_rebase" == y ]; then
+    target_branch=$(get_trunk)
+    git submodule foreach "git rebase 'origin/$target_branch' || echo 'PLEASE REBASE MANUALLY'"
+    echo "don't forget do rebase manually your root project in $PWD!"
+fi

@@ -12,32 +12,46 @@ Hoy - Developer Tools
 hoy-status
 ----------
 
-Show Gerrit username, current trunk, feature, and changed files of
-changes in all git repositories.
+Show Gerrit username, root git repository, current trunk, feature, and
+changed files of changes in all git repositories.
 
 
-hoy-sync
---------
+hoy-sync [-r|--rebase]
+----------------------
 
-Initialize submodules and fetch all branches from Gerrit repositories.
+Fetch all branches from Gerrit repositories.
 
-hoy-feature feature [branch]
-----------------------------
+Options:
+* --rebase - rebase all submodules after fetching.
+
+
+hoy-feature [-f|--force] [-d|-D|--delete] feature [branch]
+----------------------------------------------------------
 
 Prepares environment for working at requested `feature` for
-requested trunk `branch` and set commit hooks if needed.
+requested trunk `branch` and sets commit hooks if needed.
 This command checks out all git repos to `feature` branch. If
-`feature` does not exist, it is created.
+`feature` does not exist, it is created. If `feature` already exists,
+repository will be checked out to it; if `branch` is given, than
+`feature` will be retargeted for this `branch`.
+
+Options:
+* --force - recreate feature even if it exists;
+* --delete - drop feature instead of creating.
 
 
-hoy-build [-f]
---------------
+hoy-upload [-p|--pretend] [-f|--force] [-i|--ignore]
+----------------------------------------------------
 
-`hoy-build` sends all new commits of the current feature to review and asks for
-building of the feature. Optional `-f` argument forces build even if
-some commits failed to send (it's possible if you have pulled commits
-of another developer: Gerrit will reject them because it already
-has them).
+`hoy-upload` sends all new commits of the current feature to review.
+
+Options:
+* --pretend - do not send, just print what would be sent;
+* --force - send all patches even if some pushs failed (it's possible
+if you have pulled commits of another developer: Gerrit will reject
+them because it already has them);
+* --ignore - resend all patches even if they seem to be already sent.
+
 
 hoy-changelog [base_treeish]
 ----------------------------
@@ -54,6 +68,7 @@ ayer-create-trunk base_version trunk_name
 Create a new trunk starting from `base_version`. `trunk_name` is
 suffixed with `_trunk` if required. All trunk branches are created and
 the trunk RPMs are rebuilt from scratch.
+
 
 ayer-build-trunk trunk_name
 ---------------------------
@@ -80,11 +95,13 @@ The script fails if some commits are not submittable (i.e. have
 correct reviews in Gerrit) or fast-forward is impossible. All problems
 are reported.
 
+
 ayer-is-acceptable build_commit
 -------------------------------
 
 Check if `build_commit` is acceptable its target branch. Does not
 build anything.
+
 
 ayer-build-topic build_commit user
 ----------------------------------
@@ -95,11 +112,13 @@ where `branch` and `topic` correspond to `build_commit`.
 
 Reports all acceptability problems as just a warning.
 
+
 ayer-rpm [-bs|-ba]
 ------------------
 
 Build an RPM from current git repository. Accepts the same `-bs` or `-ba`
 as `rpmbuild` command.
+
 
 ayer-mock [mock_dir] [root_dir]
 -------------------------------
