@@ -6,7 +6,34 @@ hoy_init
 
 target_feature=$(git rev-parse --abbrev-ref HEAD)
 
-[ "$1" == -p ] && pretend=y || pretend=n
+usage="usage: $(basename $0) [-p|--pretend] [-f|--force] [-i|--ignore]"
+opt_pretend=n
+opt_force=n
+opt_ignore=n
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -p|--pretend)
+            opt_pretend=y
+            shift
+            ;;
+        -f|--force)
+            opt_force=y
+            shift
+            ;;
+        -i|--ignore)
+            opt_ignore=y
+            shift
+            ;;
+        -h|--help)
+            echo "$usage"
+            exit 0
+            ;;
+        *)
+            die "$usage"
+            ;;
+    esac
+done
 
 target_branch=$(get_trunk "$target_feature")
 username=$(get_username)
@@ -21,17 +48,19 @@ upload_type=for
         continue
     fi
     published_ref=refs/published/$target_feature
-    if git rev-parse $published_ref &>/dev/null; then
+    if [ "$opt_ignore" == n ] && git rev-parse $published_ref &>/dev/null; then
         difference=$(git rev-list $published_ref..HEAD)
         if [ -z "$difference" ]; then
             continue
         fi
     fi
-    if [ "$pretend" == "y" ]; then
+    if [ "$opt_pretend" == y ]; then
         echo "changes for $repo_path"
         git cherry -v remotes/origin/$target_branch HEAD
     else
-        git push origin HEAD:refs/$upload_type/$target_branch/$target_feature || true
+        if ! git push origin HEAD:refs/$upload_type/$target_branch/$target_feature; then
+            [ "$opt_force" == y ] || die "cannot publish changes for $repo_path"
+        fi
         git update-ref $published_ref HEAD
     fi
 done
