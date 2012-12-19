@@ -5,5 +5,6 @@ source /usr/lib/ayer/functions.sh
 hoy_init
 
 echo "# Gerrit user $(get_username)"
+echo "# Root repository $hoy_top"
 echo "# Target trunk $(get_trunk)"
 git status

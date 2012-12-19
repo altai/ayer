@@ -12,27 +12,23 @@ Note: different projects can have different associated Gerrit servers.
 Initialize a project
 --------------------
 
-Clone the repo and setup it. We recommend to specify a trunk branch at
-the beginning, however, it can be set later.
+Clone the repo and go into it.
 
 ::
 
-    $ git clone ssh://<gerrit-username>@osc-build.vm.griddynamics.net:29418/altai.git -b v1.0.2_trunk
+    $ git clone ssh://<gerrit-username>@khar.ci-cd.altai-dev.griddynamics.net:29418/altai
     $ cd altai
 
 
 Start a feature
 ---------------
 
-Run `hoy-feature`. You may omit trunk argument if you want to stay on
-current trunk.
-
-Note. If you are not on a feature or trunk branch (e.g., you stay on
-`master` branch), you _must_ specify the trunk.
+Run `hoy-feature`. You may omit trunk argument if you stay on a
+feature and want to use its trunk.
 
 ::
 
-    $ hoy-feature my-feature [v1.0.2_trunk]
+    $ hoy-feature my-feature [v1.1_trunk]
 
 
 Determining current status
@@ -45,8 +41,8 @@ Get current trunk and feature name and list of changes in all git repositories:
     $ hoy-status
 
 
-Building the feature
---------------------
+Uploading the feature for review
+--------------------------------
 
 Commit your changes starting from submodules. The last commit is in the
 base git repository (i.e., `altai`).
@@ -59,37 +55,34 @@ base git repository (i.e., `altai`).
     $ git commit
 
 
-Ask for a build.
+Send for review::
 
-::
+    $ hoy-upload
 
-    $ hoy-build
+If Gerrit doesn't accept all commits, you may force uploading::
 
-If Gerrit doesn't accept all commits, you may force build anyway:
-
-::
-
-    $ hoy-build -f
+    $ hoy-upload -f
 
 
 Rebase to reflect trunk changes
 -------------------------------
 
-Rebase starting from submodules.
+Make sure that you have no uncommited changes::
+
+    $ hoy-status
+
+
+Rebase submodules automatically::
+
+    $ hoy-sync -r
+
+
+If some submodules failed to rebase, visit them and finish rebasing manually.
+
+The base git repository must be always rebased manually.
 
 ::
 
-    $ hoy-sync
-    $ cd repos/altai/focus
-    $ git rebase origin/trunk
-    $ cd -
-
-
-The base git repository usually has problems in rebase.
-
-::
-
-    $ git rebase origin/trunk
+    $ git rebase origin/<you trunk here>
     $ git add .
     $ git rebase --continue
-    $ hoy-build

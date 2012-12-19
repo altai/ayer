@@ -12,32 +12,42 @@ Hoy - Developer Tools
 hoy-status
 ----------
 
-Show Gerrit username, current trunk, feature, and changed files of
-changes in all git repositories.
+Show Gerrit username, root git repository, current trunk, feature, and
+changed files of changes in all git repositories.
 
 
-hoy-sync
---------
+hoy-sync [-r|--rebase]
+----------------------
 
-Initialize submodules and fetch all branches from Gerrit repositories.
+Fetch all branches from Gerrit repositories.
 
-hoy-feature feature [branch]
-----------------------------
+Options:
+* --rebase - rebase all submodules after fetching.
+
+hoy-feature [-f|--force] [-d|-D|--delete] feature [branch]
+----------------------------------------------------------
 
 Prepares environment for working at requested `feature` for
 requested trunk `branch` and set commit hooks if needed.
 This command checks out all git repos to `feature` branch. If
 `feature` does not exist, it is created.
 
+Options:
+* --force - recreate feature even if it exists;
+* --delete - drop feature instead of creating.
 
-hoy-build [-f]
---------------
+hoy-upload [-p|--pretend] [-f|--force] [-i|--ignore]
+----------------------------------------------------
 
-`hoy-build` sends all new commits of the current feature to review and asks for
-building of the feature. Optional `-f` argument forces build even if
-some commits failed to send (it's possible if you have pulled commits
-of another developer: Gerrit will reject them because it already
-has them).
+`hoy-upload` sends all new commits of the current feature to review.
+
+Options:
+* --pretend - do not send, just print what would be sent;
+* --force - send all patches even if some pushs failed (it's possible
+if you have pulled commits of another developer: Gerrit will reject
+them because it already has them);
+* --ignore - resend all patches even if they seem to be already sent.
+some commits failed to send 
 
 hoy-changelog [base_treeish]
 ----------------------------
