@@ -49,7 +49,7 @@ a_mock () {
         "$@"
 }
 
-# Prints out the list of packgaes needed in test environment
+# Prints out the list of packages needed in test environment
 # Usage: packages_needed_to_test [specfile]
 packages_needed_to_test () {
     local specfile="$1"
@@ -82,7 +82,7 @@ fi
 cd "$work_dir"
 
 # Make new chroot and install packages to it
-a_mock --clean
+a_mock --scrub=yum-cache --clean
 a_mock --init
 
 packages_needed_to_test "$tarball_dir/"*.spec | while read; do
@@ -93,8 +93,8 @@ done
 internal_path="/builddir/$project"
 a_mock --copyin "$tarball_dir" "$internal_path"
 
-# To run .build as unprivilaged user (which is cleaner) we need
-# to set apropriate permissions
+# To run .build as unprivileged user (which is cleaner) we need
+# to set appropriate permissions
 a_mock --chroot --cwd "$internal_path" "chown -R mockbuild:mockbuild ."
 
 # At last, run what we wanted
