@@ -47,14 +47,16 @@ Uploading the feature for review
 --------------------------------
 
 Commit your changes starting from submodules. Commit in the root git
-repository (i.e., `altai`) must be the last.
+repository (i.e., `altai`) must be the last. `hoy-changelog` command
+will write `ChangeLog` for you automatically.
 
 ::
 
     $ cd repos/altai/focus
-    $ git commit
+    $ git commit .
     $ cd -
-    $ git commit
+    $ hoy-changelog
+    $ git commit .
 
 
 Send for review::

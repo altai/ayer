@@ -14,6 +14,14 @@ else
     base_treeish=remotes/origin/$(get_trunk "$target_feature")
 fi
 
+
+target_changelog="$PWD/ChangeLog"
+# file to store `Update' line
+new_changelog1=$(mktemp --tmpdir -- hoy-changelog1.XXXXXXXXXX)
+# file to list new commits
+new_changelog2=$(mktemp --tmpdir -- hoy-changelog2.XXXXXXXXXX)
+echo -n "$(date +%F) Update " > "$new_changelog1"
+
 { echo .; git submodule -q foreach 'echo $name'; } | while read repo_path; do
     cd $hoy_top/$repo_path
     local_commit=$(git rev-parse HEAD)
@@ -30,8 +38,32 @@ fi
            fi
        done
     fi
+    echo -n "$(basename $PWD), " >> "$new_changelog1"
     echo "$(basename $PWD)$version:"
     git --no-pager  log --format='    - %s%n%b' $remote_commit..HEAD |
         grep -E '^(    -|Issue:)' | perl  -pe 'BEGIN{undef $/;} s/\n(Issue:[^\n]+)/ ($1)/smg' ||
         true
-done
+done | tee "$new_changelog2"
+
+if [ -s "$new_changelog2" ]; then
+    # remove the last ", " and insert "add" if required
+    sed -i 's/, $//' "$new_changelog1"
+    comma_count=$(sed 's/,/\n/g' "$new_changelog1" | wc --lines)
+    if [ "$comma_count" -lt 2 ]; then
+        sed -i 's/, / and /' "$new_changelog1"
+    else
+        sed -i -r 's/, ([^,]+)$/, and \1/' "$new_changelog1"
+    fi
+    echo >> "$new_changelog1"
+    # list new commits after the `Update' line
+    cat "$new_changelog2" >> "$new_changelog1"
+    echo >> "$new_changelog1"
+    # add the old ChangeLog if it exists
+    if [ -e "$target_changelog" ]; then
+        git checkout -- "$target_changelog"
+        cat "$target_changelog" >> "$new_changelog1"
+    fi
+    mv -f "$new_changelog1" "$target_changelog"
+fi
+
+rm -f "$new_changelog1" "$new_changelog2"
