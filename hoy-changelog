@@ -14,6 +14,14 @@ else
     base_treeish=remotes/origin/$(get_trunk "$target_feature")
 fi
 
+
+target_changelog="ChangeLog"
+# file to store `Update' line
+new_changelog1=$(mktemp --tmpdir -- hoy-changelog1.XXXXXXXXXX)
+# file to list new commits
+new_changelog2=$(mktemp --tmpdir -- hoy-changelog2.XXXXXXXXXX)
+echo -n "$(date +%F) Update " > "$new_changelog1"
+
 { echo .; git submodule -q foreach 'echo $name'; } | while read repo_path; do
     cd $hoy_top/$repo_path
     local_commit=$(git rev-parse HEAD)
@@ -30,8 +38,29 @@ fi
            fi
        done
     fi
+    echo -n "$(basename $PWD), " >> "$new_changelog1"
     echo "$(basename $PWD)$version:"
     git --no-pager  log --format='    - %s%n%b' $remote_commit..HEAD |
         grep -E '^(    -|Issue:)' | perl  -pe 'BEGIN{undef $/;} s/\n(Issue:[^\n]+)/ ($1)/smg' ||
         true
-done
+done | tee "$new_changelog2"
+
+if [ -s "$new_changelog2" ]; then
+    {
+        # Remove the last ", " and insert "add" if required.
+        # The code handles three cases:
+        # - Update abc
+        # - Update abc and def
+        # - Update abc, def, and ghj
+        # Thanks to Ivan Melnikov for concise sed.
+        sed -r -e 's/, +$//g' -e 's/^([^,]*), ([^,]*)$/\1 and \2/' -e 's/, ([^,]*)$/, and \1/g' "$new_changelog1"
+        echo
+        # List new commits after the `Update' line.
+        cat "$new_changelog2"
+        echo
+        # Add the old ChangeLog if it exists.
+        git show "$base_treeish:$target_changelog" 2>/dev/null || true
+    } > "$target_changelog"
+fi
+
+rm -f "$new_changelog1" "$new_changelog2"

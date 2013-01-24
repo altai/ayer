@@ -56,7 +56,14 @@ them because it already has them);
 hoy-changelog [base_treeish]
 ----------------------------
 
-Prints a draft changelog relative to `base_treeish` (default: the trunk).
+Prints a draft changelog relative to `base_treeish` (default: the
+trunk). As a bonus, updates `ChangeLog` file in project root: writes
+the date, changed project names, and a list of changes.
+
+Note. `hoy-changelog` is safe to run several times since it will
+prepend new lines to version of `ChangeLog` that is saved in git index
+or in HEAD. This is reached by calling ``git checkout -- ChangeLog``
+before updating this file.
 
 
 Ayer - Maintainer Tools
