@@ -3,10 +3,12 @@
 CONFIG_DIR="$HOME/.config/ayer"
 mock_configdir="$CONFIG_DIR/mock"
 
-# Usage: "$0" <mock_root> <root_dir>
+# Usage: "$0" <mock_root> <mock_extra_args>
+# Builds rpms from ./SPRMS directory
 
 mock_root=${1:-ayer}
-root_dir=$(readlink -f ${2:-$PWD})
+shift || true
+root_dir=$(readlink -f $PWD)
 
 src_repo_dir="$root_dir/SRPMS"
 bin_repo_dir="$root_dir/RPMS"
@@ -44,8 +46,12 @@ for src_rpm in "$src_repo_dir"/*.src.rpm; do
         --configdir "$mock_configdir" \
         --resultdir "$result_dir" \
         --verbose \
+        "$@" \
         --rebuild "$src_rpm" \
-        &> "$log_filename" || die "Mock failed"
+        &> "$log_filename" || {
+        cat "$log_filename"
+        die "Mock failed"
+    }
 done
 
 test_first -r "$result_dir"/*.rpm || die "No RPMS build."
@@ -57,4 +63,3 @@ for bin_rpm in "$result_dir"/*.rpm; do
         *) cp "$bin_rpm" "$bin_repo_dir/"
     esac
 done
-

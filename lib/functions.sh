@@ -17,6 +17,7 @@ AYER_CONFIG_VARS="GERRIT_SSH
   BASE_PROJECT
   YUM_REPO_BASEURL_DEV
   YUM_REPO_BASEURL_RELEASE
+  BUILD_BIN_RPMS_ARGS
 "
 
 
@@ -217,7 +218,7 @@ function replace_repos() {
     local build_dir=$base_target_dir/build
     replace_dir "$build_dir/deps" "$base_target_dir/deps"
     replace_dir "$build_dir/RPMS" "$base_target_dir/$build_os"
-    #rm -rf "$build_dir"
+    rm -rf "$build_dir"
 }
 
 function get_trunk() {
