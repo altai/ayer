@@ -75,18 +75,17 @@ function execute_build_plan() {
 function build_bin_rpms() {
     local srpms_dir="$build_dir/SRPMS"
     local build_script=ayer-mock
-    local build_script_args="altai"
 
     cd "$build_dir"
     if [ -n "$BUILD_SERVER_SSH" ]; then
         echo -n "building binary rpms at $BUILD_SERVER_SSH"
         local remote_dir=$(ssh "$BUILD_SERVER_SSH" "mktemp -d /tmp/ayer.XXXXXX")
         echo ":$remote_dir"
-        scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
-        scp "$(which "$build_script")" "$BUILD_SERVER_SSH:$remote_dir/" >/dev/null
-        ssh "$BUILD_SERVER_SSH" "cd $remote_dir && \"./$build_script\" $build_script_args" && binrpm_exitcode=0 || binrpm_exitcode=$?
-        rm -rf "$build_dir/"{RPMS,LOGS}
-        scp -r "$BUILD_SERVER_SSH:$remote_dir/{RPMS,LOGS}" "$build_dir" >/dev/null
+        scp -r "$srpms_dir" "$BUILD_SERVER_SSH:$remote_dir/"
+        scp "$(which "$build_script")" "$BUILD_SERVER_SSH:$remote_dir/"
+        ssh "$BUILD_SERVER_SSH" "cd $remote_dir && \"./$build_script\" $BUILD_BIN_RPMS_ARGS" && binrpm_exitcode=0 || binrpm_exitcode=$?
+        rm -rf "$build_dir/RPMS"
+        [ "$binrpm_exitcode" != "0" ] || scp -r "$BUILD_SERVER_SSH:$remote_dir/RPMS" "$build_dir"
         ssh "$BUILD_SERVER_SSH" "rm -rf '$remote_dir'"
         [ "$binrpm_exitcode" == "0" ] || die "binary rpm build failed with exit code $binrpm_exitcode"
     else
@@ -94,7 +93,7 @@ function build_bin_rpms() {
     fi
     if [ -n "$AYER_RPM_SIGN" ]; then
         echo "signing rpms"
-        $AYER_RPM_SIGN "$build_dir/RPMS"/*rpm > "$build_dir/LOGS/sign.log"
+        $AYER_RPM_SIGN "$build_dir/RPMS"/*rpm > /dev/null
     fi
 }
 
@@ -133,8 +132,18 @@ echo "build is available at $YUM_REPO_BASEURL_DEV/$target_path"
 base_target_dir="$YUM_REPO_DIR/$target_path"
 build_dir="$base_target_dir/build"
 
+function clean_at_exit() {
+    cd "$build_dir"
+    for i in *; do
+        if [ "$i" != deps -a "$i" != RPMS ]; then
+            rm -rf "$build_dir/$i"
+        fi
+    done
+}
+
 rm -rf "$build_dir"
 mkdir -p "$build_dir"
+trap clean_at_exit EXIT
 
 git_list="$build_dir/git-diff.list"
 create_build_plan "$git_list" "$previous_ref"
