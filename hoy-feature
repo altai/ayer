@@ -2,7 +2,13 @@
 
 source /usr/lib/ayer/functions.sh
 
-usage="usage: $(basename $0) [-f|--force] [-d|-D|--delete] feature [branch]"
+
+usage=`cat <<EOT
+usage: $(basename $0) [-f|--force] feature [branch]
+       $(basename $0) [-d|-D|--delete] feature
+       $(basename $0) [-m|--rename] feature new_name
+EOT`
+
 
 opt_force=n
 opt_delete=n
@@ -13,6 +19,12 @@ case "$1" in
         ;;
     -D|-d|--delete)
         opt_delete=y
+        [ "$opt_rename" == y ] && die "Can't delete while renaming"
+        shift
+        ;;
+    -m|--rename)
+        opt_rename=y
+        [ "$opt_delete" == y ] && die "Can't delete while renaming"
         shift
         ;;
     -h|--help)
@@ -21,11 +33,9 @@ case "$1" in
         ;;
 esac
 
-target_feature=$1
-target_branch=$2
-
 hoy_init
 
+target_feature=$1
 [ -n "$target_feature" ] || die "$usage"
 
 if [ "$opt_delete" == y ]; then
@@ -36,6 +46,16 @@ if [ "$opt_delete" == y ]; then
     git submodule foreach "git branch -D '$target_feature' || :"
     exit
 fi
+
+if [ "$opt_rename" == y ]; then
+    new_name=$2
+    [ -n "$new_name" ] || die "$usage"
+    git branch -m "$target_feature" "$new_name"
+    git submodule foreach "git branch -m '$target_feature' '$new_name'"
+    exit
+fi
+
+target_branch=$2
 
 if [ "$opt_force" == n ] && git rev-parse "$target_feature" &>/dev/null; then
     # the feature already exists - just checkout
