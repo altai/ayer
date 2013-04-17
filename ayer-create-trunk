@@ -7,7 +7,8 @@ ayer_init
 base_version="${1}"
 trunk_name="${2%_trunk}_trunk"
 
-[ -n "$base_version" -a -n "$trunk_name" ] || die "usage: $(basename $0) base_version trunk_name"
+[ -n "$base_version" -a -n "${trunk_name%_trunk}" ] \
+    || die "usage: $(basename $0) base_version trunk_name"
 
 # TODO: check for validity base_version, trunk_name
 
