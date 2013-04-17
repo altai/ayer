@@ -2,7 +2,7 @@
 
 # arguments: version_name
 
-source /usr/lib/ayer/functions.sh
+source /usr/lib/ayer/functions.sh || exit 1
 
 ayer_init
 
