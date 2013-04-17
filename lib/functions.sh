@@ -38,7 +38,17 @@ function check_variables() {
 }
 
 
+function check_git_version() {
+    # NOTE(imelnikov): We don't wont to go into parsing git --version
+    # output, but better check some features not present in older
+    # git releases
+    git checkout -h 2>&1 | grep -q '^\s\+-B' || return 1
+    return 0
+}
+
+
 function ayer_init() {
+    check_git_version || die "Your git version is not supported"
     if [ -f "$AYER_CONFIG" ]; then
         source "$AYER_CONFIG"
     else
@@ -51,6 +61,7 @@ function ayer_init() {
 
 
 function hoy_init() {
+    check_git_version || die "Your git version is not supported"
     while true; do
         if [ "$PWD" == "/" ]; then
             die "not an hoy repository"
